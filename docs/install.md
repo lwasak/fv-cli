@@ -27,7 +27,7 @@ With Go 1.26.10 or newer:
 go install github.com/lwasak/fv-cli/cmd/fv@latest
 ```
 
-This puts `fv` (`fv.exe` on Windows) in `$(go env GOPATH)/bin`; add that folder to your `PATH`. A binary built on your own machine is never quarantined or blocked (see the OS sections). `fv version` prints `dev` for it because no version is stamped in.
+This puts `fv` (`fv.exe` on Windows) in `$(go env GOPATH)/bin`; add that folder to your `PATH`. A binary built on your own machine is never quarantined or blocked (see the OS sections). `fv version` prints the module version of the tag you installed (for example `0.1.0`), because Go embeds it. A build with plain `go build` inside a git checkout shows the pseudo-version Go makes up for it (`0.0.0-<time>-<commit>`, with `+dirty` when files were modified), plus the commit and date.
 
 ## Build from source
 
@@ -51,7 +51,7 @@ Check the result:
 .\fv.exe version
 ```
 
-`fv version` prints one line: the version, commit, build date and platform. A build without the flags prints `dev` and `unknown`.
+`fv version` prints one line: the version, commit, build date and platform. A build without the flags takes what Go embeds: `go install ...@<version>` prints that version, a build inside a git checkout prints Go's pseudo-version with the commit and date, and anything else prints `dev` and `unknown`.
 
 ### Cross-compile for every target
 
