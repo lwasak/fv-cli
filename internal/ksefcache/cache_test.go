@@ -435,3 +435,23 @@ func TestMerge_ConcurrentWritersLoseNothing(t *testing.T) {
 		t.Errorf("%d entries, %v", len(got), err)
 	}
 }
+
+func TestRemember_StoresMetadataButKeepsTheSyncTime(t *testing.T) {
+	c := open(t)
+	m := ksef.InvoiceMeta{KSeFNumber: numA, InvoiceNumber: "ZAK/1", IssueDate: "2026-09-15"}
+	if err := c.Remember(context.Background(), []ksef.InvoiceMeta{m}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := c.LastSync(); !got.IsZero() {
+		t.Errorf("LastSync = %v after Remember", got)
+	}
+	if es, err := c.ByInvoiceNumber("ZAK/1"); err != nil || len(es) != 1 || es[0].KSeFNumber != numA {
+		t.Errorf("entries %v %v", es, err)
+	}
+	if err := c.Merge(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := c.LastSync(); got.IsZero() {
+		t.Error("Merge did not set the sync time")
+	}
+}

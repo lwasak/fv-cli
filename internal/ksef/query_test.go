@@ -501,3 +501,14 @@ func TestQueryFake_OnlineAcceptedInvoicesAppearAsSales(t *testing.T) {
 		t.Errorf("violations %v", v)
 	}
 }
+
+func TestQueryAll_InvoiceNumberFilterIsExact(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	want := fx.q.Add(ksefake.QMeta{InvoiceNumber: "ZAK/09/15", IssueDate: "2026-09-15", SellerNIP: queryNIP}, nil)
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: "ZAK/09/155", IssueDate: "2026-09-15", SellerNIP: queryNIP}, nil)
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: "zak/09/15", IssueDate: "2026-09-15", SellerNIP: queryNIP}, nil)
+	got, err := fx.c.QueryAllMetadataFiltered(context.Background(), fx.s, Subject1, "2026-09-01", "2026-09-30", MetadataFilter{InvoiceNumber: "ZAK/09/15"}, nil)
+	if err != nil || len(got) != 1 || got[0].KSeFNumber != want {
+		t.Fatalf("%v %+v", err, got)
+	}
+}

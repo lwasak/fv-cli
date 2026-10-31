@@ -159,7 +159,7 @@ For an archived invoice, `fv show` looks for the number in the selected environm
 
 ### Show an invoice you did not issue
 
-`fv show` also reads any invoice that [`fv list`](#list) shows, a purchase for example. Give its KSeF number, or its invoice number when only one listed invoice has it:
+`fv show` also reads any invoice that [`fv list`](#list) shows, a purchase for example. Give its KSeF number, or its invoice number when only one invoice in KSeF has it:
 
 <!-- transcript:show-purchase -->
 ```text
@@ -194,7 +194,7 @@ Source:    KSeF, downloaded 2026-10-31 10:00 (just now, SHA-256 checked)
 KSeF no.:  5252248481-20261012-0200002AF62A-20
 ```
 
-The first time, fv logs in to KSeF and downloads that one invoice (one request, not a query); it keeps the XML in a local cache and checks its SHA-256 every time it is read, so the next `fv show` makes no request. `--xml` prints the downloaded XML exactly as KSeF served it. If two listed invoices share a number, fv exits 1 and lists their KSeF numbers; pass one of them. A number fv has never listed is refused with a hint to run `fv list` over its issue date. If KSeF answers that the invoice is not downloadable yet (it was accepted a moment ago), retry in a minute. Only FA(2) and FA(3) invoices are shown in readable form; for another form fv prints what the metadata knows and tells you to use `--xml`.
+The first time, fv logs in to KSeF and downloads that one invoice (one request, not a query); it keeps the XML in a local cache and checks its SHA-256 every time it is read, so the next `fv show` makes no request. `--xml` prints the downloaded XML exactly as KSeF served it. If two listed invoices share a number, fv exits 1 and lists their KSeF numbers; pass one of them. A number that is neither in the archive nor in the cache is looked up in KSeF: one login, then one metadata query for that exact number as seller and one as buyer, over the issue dates of the default range of `fv list` (the current month and the two before it) or over `--from` and `--to` (at most 366 days; a range longer than 92 days takes several queries per side, and the per-run budget of 10 queries applies). One match is shown (and cached, together with the match's metadata); several matches are listed with their KSeF numbers and `fv show` exits 1; none gives exit 1 and `not found in KSeF between <from> and <to>; widen with --from/--to`. `fv show --offline` never contacts KSeF: it uses only the archive and the cache. If KSeF answers that the invoice is not downloadable yet (it was accepted a moment ago), retry in a minute. Only FA(2) and FA(3) invoices are shown in readable form; for another form fv prints what the metadata knows and tells you to use `--xml`.
 
 ## 3. Send it
 

@@ -156,6 +156,16 @@ func (c *Cache) update(ctx context.Context, recoverCorrupt bool, fn func(*index)
 // its XML hash. A number that does not pass ValidateKSeFNumber is an error and nothing is
 // written. A corrupt index is replaced.
 func (c *Cache) Merge(ctx context.Context, metas []ksef.InvoiceMeta) error {
+	return c.merge(ctx, metas, true)
+}
+
+// Remember is Merge for a partial answer (a query for one invoice number): the metadata is
+// stored but the sync time, which says when the cache last held a full listing, stays.
+func (c *Cache) Remember(ctx context.Context, metas []ksef.InvoiceMeta) error {
+	return c.merge(ctx, metas, false)
+}
+
+func (c *Cache) merge(ctx context.Context, metas []ksef.InvoiceMeta, sync bool) error {
 	for _, m := range metas {
 		if err := ksef.ValidateKSeFNumber(m.KSeFNumber); err != nil {
 			return err
@@ -168,7 +178,9 @@ func (c *Cache) Merge(ctx context.Context, metas []ksef.InvoiceMeta) error {
 			e.InvoiceMeta, e.FetchedAt = m, now
 			idx.Entries[m.KSeFNumber] = e
 		}
-		idx.LastSync = now
+		if sync {
+			idx.LastSync = now
+		}
 		return nil
 	})
 }

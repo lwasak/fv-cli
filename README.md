@@ -220,7 +220,7 @@ fv show 5260250274-20261031-0100001AF62C-27
 
 `fv list` shows the invoices of the selected environment for the **last three months including the current one**: your sales and your purchases, read from KSeF and merged with your archive, so an invoice you sent with fv appears once with its state and an invoice that exists only in KSeF has the state `ksef`. `--from` and `--to` (`YYYY-MM-DD`) or `--month YYYY-MM` choose the issue dates, `--as seller` or `--as buyer` limits it to sales or purchases, `--offline` asks nothing and shows the archive and the rows cached earlier, and `--wide` adds full names, NIPs and KSeF numbers. KSeF limits metadata queries to 20 per hour; see [Troubleshooting](docs/troubleshooting.md#fv-list-says-the-ksef-limit-was-reached-or-shows-only-some-invoices).
 
-`fv show` works for **any invoice `fv list` shows**: give its KSeF number, or its invoice number if only one listed invoice has it. An invoice that is not stored yet is downloaded once and kept in a local cache; `--xml` prints it exactly as KSeF served it.
+`fv show` works for **any invoice `fv list` shows**: give its KSeF number, or its invoice number if only one invoice in KSeF has it. An invoice that is not stored yet is downloaded once and kept in a local cache; `--xml` prints it exactly as KSeF served it. An invoice number fv has not seen is looked up in KSeF over the last three months, or over `--from`/`--to`; `--offline` asks KSeF nothing.
 
 ### 9. Go to production
 

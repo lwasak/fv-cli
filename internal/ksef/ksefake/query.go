@@ -80,7 +80,7 @@ type Query struct {
 //	POST /invoices/query/metadata?sortOrder=&pageOffset=&pageSize=   metadata query
 //	GET  /invoices/ksef/{ksefNumber}                                 invoice XML with x-ms-meta-hash
 //
-// The query checks the bearer, subjectType (Subject1 or Subject2), dateType Issue, the
+// The query filters by the exact invoiceNumber when one is sent. It checks the bearer, subjectType (Subject1 or Subject2), dateType Issue, the
 // date-time format, a span of at most 100 days (400 21405), pageSize 10..250 and
 // pageOffset as a page index. Each client mistake is answered 4xx and recorded in
 // Violations. A 429 is scripted with Fake.Inject.
@@ -319,8 +319,9 @@ func (q *Query) query(r Request) Response {
 		return q.bad("sortOrder %q", order)
 	}
 	var req struct {
-		SubjectType string `json:"subjectType"`
-		DateRange   struct {
+		SubjectType   string `json:"subjectType"`
+		InvoiceNumber string `json:"invoiceNumber"`
+		DateRange     struct {
 			DateType string `json:"dateType"`
 			From     string `json:"from"`
 			To       string `json:"to"`
@@ -357,6 +358,9 @@ func (q *Query) query(r Request) Response {
 		d, err := time.Parse("2006-01-02", row.m.IssueDate)
 		if err != nil || d.Before(from) || d.After(to) {
 			continue
+		}
+		if req.InvoiceNumber != "" && row.m.InvoiceNumber != req.InvoiceNumber {
+			continue // exact match, as KSeF does
 		}
 		inSeller := row.online || row.m.SellerNIP == q.opts.NIP
 		inBuyer := row.m.BuyerType != "None" && row.m.BuyerType != "Other" && row.m.BuyerID == q.opts.NIP

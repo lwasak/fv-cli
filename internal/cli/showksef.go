@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,13 +25,16 @@ import (
 // showFromKSeF shows the invoice with this KSeF number from the cache or, when it has not been
 // fetched yet, after one download (which is then cached for good). It never queries the
 // metadata, which costs the scarce 20-an-hour budget.
-func (s *session) showFromKSeF(cmd *cobra.Command, rc *runContext, cache *ksefcache.Cache, ksefNo string, asXML bool) error {
+func (s *session) showFromKSeF(cmd *cobra.Command, rc *runContext, cache *ksefcache.Cache, ksefNo string, o showOpts, conn *ksefConn) error {
+	asXML := o.xml
 	b, err := cache.XML(ksefNo)
 	fromCache := err == nil
 	switch {
 	case err == nil:
+	case errors.Is(err, ksefcache.ErrNotCached) && o.offline:
+		return fmt.Errorf("%s is not in the local cache and --offline does not contact KSeF; run fv show without --offline to download it", ksefNo)
 	case errors.Is(err, ksefcache.ErrNotCached):
-		if b, err = s.downloadInvoice(cmd, rc, cache, ksefNo); err != nil {
+		if b, err = s.downloadInvoice(cmd, rc, cache, ksefNo, conn); err != nil {
 			return err
 		}
 	default:
@@ -42,17 +46,17 @@ func (s *session) showFromKSeF(cmd *cobra.Command, rc *runContext, cache *ksefca
 		return err
 	}
 	e, _, _ := cache.ByKSeFNumber(ksefNo)
-	o := previewOpts{Color: colorOK(out)}
+	po := previewOpts{Color: colorOK(out)}
 	if fa, why := faSupported(e); !fa {
-		renderKSeFSummary(out, rc.Env, e, ksefNo, why, o)
+		renderKSeFSummary(out, rc.Env, e, ksefNo, why, po)
 		return nil
 	}
 	doc, perr := fa3.Parse(b)
 	if perr != nil {
-		renderKSeFSummary(out, rc.Env, e, ksefNo, "the XML could not be read ("+perr.Error()+")", o)
+		renderKSeFSummary(out, rc.Env, e, ksefNo, "the XML could not be read ("+perr.Error()+")", po)
 		return nil
 	}
-	renderKSeFInvoice(out, doc, e, ksefNo, rc.Config.Seller.NIP, rc.Env, fromCache, o)
+	renderKSeFInvoice(out, doc, e, ksefNo, rc.Config.Seller.NIP, rc.Env, fromCache, po)
 	return nil
 }
 
@@ -66,17 +70,40 @@ func faSupported(e ksefcache.Entry) (bool, string) {
 	return false, e.FormCode
 }
 
-// downloadInvoice fetches the XML of ksefNo from KSeF (login, one GET) and caches it.
-func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *ksefcache.Cache, ksefNo string) ([]byte, error) {
+// ksefConn is a logged-in KSeF client of one command run.
+type ksefConn struct {
+	ctx    context.Context
+	client *ksef.Client
+	sess   *ksef.Session
+}
+
+// connectKSeF logs in to KSeF. The returned function releases the log file and the interrupt
+// handler; call it once the connection is no longer used.
+func (s *session) connectKSeF(cmd *cobra.Command, rc *runContext) (*ksefConn, func(), error) {
 	l, closeLog := s.logger(rc.Paths)
-	defer closeLog()
 	ctx, stop := signal.NotifyContext(commandContext(cmd), os.Interrupt)
-	defer stop()
+	done := func() { stop(); closeLog() }
 	client, sess, err := s.ksefLogin(ctx, rc, l)
 	if err != nil {
-		return nil, loginFailure(err)
+		done()
+		return nil, nil, loginFailure(err)
 	}
-	b, hash, err := client.DownloadInvoice(ctx, sess, ksefNo)
+	return &ksefConn{ctx: ctx, client: client, sess: sess}, done, nil
+}
+
+// downloadInvoice fetches the XML of ksefNo from KSeF (one GET, after a login unless conn
+// is given) and caches it.
+func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *ksefcache.Cache, ksefNo string, conn *ksefConn) ([]byte, error) {
+	if conn == nil {
+		c, done, err := s.connectKSeF(cmd, rc)
+		if err != nil {
+			return nil, err
+		}
+		defer done()
+		conn = c
+	}
+	ctx := conn.ctx
+	b, hash, err := conn.client.DownloadInvoice(ctx, conn.sess, ksefNo)
 	switch {
 	case err == nil:
 	case ksef.IsNotYetAvailable(err):
@@ -97,9 +124,9 @@ func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *kse
 }
 
 // ambiguousNumber is the error for an invoice number that two or more suppliers used.
-func ambiguousNumber(number string, es []ksefcache.Entry) error {
+func ambiguousNumber(number string, es []ksefcache.Entry, where string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%q matches %d invoices in the KSeF rows of your last fv list; give the KSeF number:\n", clean(number), len(es))
+	fmt.Fprintf(&b, "%q matches %d invoices %s; give the KSeF number:\n", clean(number), len(es), where)
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "  ISSUED\tSELLER\tNIP\tKSEF-NUMBER")
 	for _, e := range es {
@@ -110,7 +137,7 @@ func ambiguousNumber(number string, es []ksefcache.Entry) error {
 }
 
 func notInCache(number string) error {
-	return fmt.Errorf("%q is not in the archive or in the KSeF rows of your last fv list; run `fv list --from YYYY-MM-DD --to YYYY-MM-DD` covering its issue date, or pass the KSeF number", clean(number))
+	return fmt.Errorf("%q is not in the archive or in the KSeF rows cached by fv list; run `fv list --from YYYY-MM-DD --to YYYY-MM-DD` covering its issue date, run fv show without --offline, or pass the KSeF number", clean(number))
 }
 
 // --- rendering ---
