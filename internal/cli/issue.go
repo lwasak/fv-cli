@@ -420,6 +420,14 @@ func (s *session) assemble(ctx context.Context, rc *runContext, f issueFlags, se
 		warnings = append(warnings, fmt.Sprintf("the SWIFT code %s is for country %s, but the account %s is from %s; check swift (it must be the BIC of the bank that holds bank_account)",
 			set.swift, set.swift[4:6], set.bank, set.bank[:2]))
 	}
+	// An item priced without a currency is a PLN price list entry as often as not.
+	warned := map[string]bool{}
+	for _, l := range comp.Lines {
+		if l.Item != "" && set.currency != "PLN" && rc.Config.Items[l.Item].Currency == "" && !warned[l.Item] {
+			warned[l.Item] = true
+			warnings = append(warnings, fmt.Sprintf("item %s has no currency set; its unit_price is taken as %s", l.Item, set.currency))
+		}
+	}
 	warnings = append(warnings, seller.Warnings...)
 	warnings = append(warnings, buyer.Warnings...)
 	if comp.Summary.Gross >= mppThreshold && set.currency == "PLN" {

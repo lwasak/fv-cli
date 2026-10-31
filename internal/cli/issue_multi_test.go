@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -315,4 +317,63 @@ func TestIssueBank_InvalidConfigIsRefused(t *testing.T) {
 	cfg := strings.Replace(bankConfig, `swift = "brex plpw"`, `swift = "BREXPLPW9"`, 1)
 	fx := newIssueFx(t, cfg)
 	fx.mustFail("defaults.swift", "--to", "acme", "--net", "100")
+}
+
+// Meta written before several lines, items and the bank name existed has none of the new
+// fields; it must still load and render, with no Index column and no Bank line.
+func TestShow_MetaWithoutTheMultiLineFields(t *testing.T) {
+	fx := newIssueFx(t, multiConfig)
+	raw, err := os.ReadFile(filepath.Join("testdata", "meta_before_multiline.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{`"item"`, `"index"`, `"pkwiu"`, `"gtin"`, `"bankName"`, `"bankSwift"`} {
+		if strings.Contains(string(raw), f) {
+			t.Fatalf("the fixture must not contain %s", f)
+		}
+	}
+	dir := filepath.Join(fx.dataDir, "invoices", "test", "2026", "FV_2026_09_001")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := fx.run("show", "FV/2026/09/001")
+	if code != 0 {
+		t.Fatalf("show: exit %d: %s", code, errs)
+	}
+	for _, want := range []string{"Invoice:   FV/2026/09/001", "Usługi za wrzesień 2026", "18 500,00", "22 755,00", "Account:   PL61 1090 1014 0000 0712 1981 2874"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("show lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Index") || strings.Contains(out, "Bank:") {
+		t.Errorf("an old invoice shows new columns:\n%s", out)
+	}
+}
+
+func TestIssueMulti_ItemWithoutCurrencyOnForeignInvoiceWarns(t *testing.T) {
+	fx := newIssueFx(t, multiConfig)
+	nbpFake := &fakeNBP{byDay: map[string]string{"2026-10-30": "eur_200.json"}}
+	nbpFake.attach(t, fx)
+	out := fx.mustIssue("--to", "acme", "--currency", "EUR", "--item", "dev", "--item", "dev=2", "--item", "eurdev")
+	const want = "item dev has no currency set; its unit_price is taken as EUR"
+	if strings.Count(out, want) != 1 {
+		t.Errorf("want exactly one warning %q:\n%s", want, out)
+	}
+	if strings.Contains(out, "item eurdev has no currency") {
+		t.Errorf("an item with a currency must not warn:\n%s", out)
+	}
+	m, _ := fx.store().Load(config.EnvTest, "FV/2026/10/001")
+	if len(m.Warnings) == 0 || !strings.Contains(strings.Join(m.Warnings, "|"), want) {
+		t.Errorf("the warning must be stored: %v", m.Warnings)
+	}
+}
+
+func TestIssueMulti_NoCurrencyWarningInPLN(t *testing.T) {
+	fx := newIssueFx(t, multiConfig)
+	if out := fx.mustIssue("--to", "acme", "--item", "dev"); strings.Contains(out, "has no currency set") {
+		t.Errorf("PLN invoice warned:\n%s", out)
+	}
 }

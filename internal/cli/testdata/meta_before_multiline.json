@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "number": "FV/2026/09/001",
+  "env": "test",
+  "state": "draft",
+  "seq": 1,
+  "counterKey": "FV/{YYYY}/{MM}/{SEQ:3}|2026-09",
+  "issueDate": "2026-09-30",
+  "saleDate": "2026-09-30",
+  "dueDate": "2026-10-14",
+  "createdAt": "2026-09-30T08:00:00Z",
+  "updatedAt": "2026-09-30T08:00:00Z",
+  "seller": {"nip": "5260250274", "name": "Seller Sp. z o.o.", "address": "ul. Morska 1, 81-001 Gdynia", "source": "whitelist"},
+  "buyer": {"alias": "acme", "nip": "5252248481", "name": "Acme S.A.", "address": "ul. Prosta 2, 00-001 Warszawa", "source": "whitelist"},
+  "currency": "PLN",
+  "lines": [
+    {"no": 1, "description": "Usługi za wrzesień 2026", "unit": "usł.", "quantity": "1", "unitPrice": 1850000, "net": 1850000, "rate": "23"}
+  ],
+  "totals": [
+    {"rate": "23", "net": 1850000, "vat": 425500, "gross": 2275500}
+  ],
+  "gross": 2275500,
+  "bankAccount": "PL61109010140000071219812874",
+  "history": [{"state": "draft", "at": "2026-09-30T08:00:00Z"}]
+}
