@@ -131,17 +131,37 @@ To fix, renew it: [Setup, renew the certificate](setup.md#4-renew-the-certificat
 
 ## Live check against TEST/DEMO
 
-`scripts/Test-Live.ps1` (PowerShell 7) runs the whole chain against the real KSeF TEST or DEMO application, the production MF White List and NBP, without touching your own fv config, archive or keyring entries:
+The Go test `TestLive` in `internal/live` runs the whole chain against the real KSeF TEST or DEMO application, the production MF White List and NBP, without touching your own fv config, archive or keyring entries. It has the build tag `kseflive`, so `go test ./...` never compiles or runs it. It works the same on Windows, Linux and macOS.
+
+PowerShell:
 
 ```powershell
-pwsh -NoProfile -File scripts/Test-Live.ps1 -Env demo -CertPath C:\keys\cert.pem -KeyPath C:\keys\key.pem -Nip 5260250274
+$env:FV_LIVE_ENV = "demo"
+$env:FV_LIVE_CERT = "C:\keys\cert.pem"
+$env:FV_LIVE_KEY = "C:\keys\key.pem"
+$env:FV_LIVE_NIP = "5260250274"
+$env:FV_SECRET_KSEF_DEMO_5260250274 = Read-Host "Passphrase"
+go test -tags kseflive -run TestLive -v ./internal/live
+Remove-Item Env:FV_SECRET_KSEF_DEMO_5260250274
 ```
 
-Parameters: `-Env demo|test` (`prod` is refused), `-CertPath` (`.p12`/`.pfx`, or `.pem`/`.crt` with `-KeyPath`), `-Nip` (the seller), optionally `-BuyerNip` (default `1111111111`, a fictional NIP with name and address from the config, because MF asks not to send real company data to TEST/DEMO) and `-Fv` (path of `fv`).
+bash or zsh:
 
-The script creates a temporary folder with its own `FV_CONFIG` and `FV_DATA_DIR`, asks for the key passphrase with a hidden prompt and hands it to fv only through the environment variable `FV_SECRET_KSEF_<ENV>_<NIP>` of that run. Then it runs `fv init --import-cert ... [--import-key ...]`, `config validate`, `ksef check`, issues a 1,00 PLN invoice, sends it with `--yes`, and runs `status` and `list`. It prints one line per step and ends with `PASS` or `FAIL` (exit code 0 or 1). The temporary folder is deleted at the end.
+```sh
+export FV_LIVE_ENV=demo
+export FV_LIVE_CERT=/keys/cert.pem
+export FV_LIVE_KEY=/keys/key.pem
+export FV_LIVE_NIP=5260250274
+read -rs FV_SECRET_KSEF_DEMO_5260250274 && export FV_SECRET_KSEF_DEMO_5260250274
+go test -tags kseflive -run TestLive -v ./internal/live
+unset FV_SECRET_KSEF_DEMO_5260250274
+```
 
-If your OS keyring already holds a passphrase for the same environment and NIP, fv prefers it over the variable. `fv init --import-cert` never writes the keyring when the passphrase comes from the variable.
+Variables: `FV_LIVE_ENV` is `demo` or `test` (`prod` and anything else is refused), `FV_LIVE_CERT` is the certificate (`.p12`/`.pfx`, or `.pem`/`.crt` with `FV_LIVE_KEY`; the key is optional for a `.p12`), `FV_LIVE_NIP` is the seller, and `FV_LIVE_BUYER_NIP` is optional (default `1111111111`, a fictional NIP with name and address from the config, because MF asks not to send real company data to TEST/DEMO). The passphrase is read only from `FV_SECRET_KSEF_<ENV>_<NIP>`. If a required variable is missing, the test is skipped with a message that names it.
+
+The test uses temporary folders for `FV_CONFIG` and `FV_DATA_DIR` and an empty in-memory keyring, and hands the passphrase to fv only through that environment variable. It runs `fv init --import-cert ... [--import-key ...]`, `config validate`, `ksef check`, issues a 1 PLN invoice, sends it with `--yes`, and runs `status` and `list`. It checks that every command exits 0, that the invoice is accepted with a valid KSeF number and that `upo.xml` is stored, then scans every file in the temporary folders and everything fv printed for the passphrase. The temporary folders are deleted at the end.
+
+The test never reads your OS keyring, so a passphrase stored there for the same environment and NIP does not matter. `fv init --import-cert` never writes the keyring when the passphrase comes from the variable.
 
 Things this check has caught before:
 

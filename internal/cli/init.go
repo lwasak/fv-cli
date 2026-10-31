@@ -37,7 +37,7 @@ func newInitCmd(s *session) *cobra.Command {
 			"of the key and certificate in the data folder, and the original files can then be deleted. " +
 			"To import the certificate of another environment, run fv --env demo init, answer N to keeping the " +
 			"config and y to the import. See the user guide, docs/setup.md.\n\n" +
-			"For a scripted run (scripts/Test-Live.ps1), --import-cert (and --import-key for a .pem/.crt) " +
+			"For a scripted run (the live test in internal/live), --import-cert (and --import-key for a .pem/.crt) " +
 			"imports without the questions. The passphrase is then read from the environment variable " +
 			"FV_SECRET_KSEF_<ENV>_<NIP> (or asked on the terminal) and, when it came from the variable, " +
 			"is not written to the keyring; it is never a flag.",

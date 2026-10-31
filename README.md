@@ -99,7 +99,7 @@ go test ./...
 go build ./cmd/fv
 ```
 
-`scripts/Test-Live.ps1` (PowerShell 7) runs a manual live check against KSeF TEST or DEMO in an isolated temporary config; it needs your own certificate and refuses PROD.
+The Go test in `internal/live` (build tag `kseflive`, see [Troubleshooting](docs/troubleshooting.md#live-check-against-testdemo)) runs a manual live check against KSeF TEST or DEMO in an isolated temporary config; it needs your own certificate and refuses PROD.
 
 ### Releasing
 
