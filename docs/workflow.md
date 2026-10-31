@@ -135,7 +135,7 @@ fv issue --to acme --item dev=160 --line "desc=Hosting {month_name_en} {year}; p
 - The **unit** is the line's `unit=` or the item's `unit`, then the party's, then `[defaults]`, then `usł.`.
 - The **exemption basis** is one per invoice. As soon as any line is `zw`, `exemption_basis` must be set.
 - An item's price is in the invoice currency and is never converted. An item with `currency = "PLN"` on a EUR invoice is refused; use a `--line` or an item priced in EUR.
-- An invoice has at most 10 000 lines, and the XML at most 1 MB.
+- An invoice has at most 10 000 lines, and the XML at most 1 MB. The size limit comes first: about 3 000 short lines already make roughly 630 KB, so a few thousand lines are the practical maximum.
 
 VAT is added up once per rate from the line net amounts, not line by line; [Amounts](amounts.md#several-lines-and-rounding) shows the rule.
 

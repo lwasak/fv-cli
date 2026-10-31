@@ -50,6 +50,10 @@ zsh is covered by analogy with bash and has not been run yet.
 
 In Windows PowerShell 5.1, an unquoted `18500,05` is a **list of two numbers**, `18500` and `05`. fv receives `18500,5`: 18 500,50 instead of 18 500,05. Nothing fails; the amount is silently wrong. The quoted form `"18500,05"` is correct in every shell, so always write it. The preview shows the amount fv understood: read it before you send.
 
+### Several lines
+
+`--item dev=1,5` works without quotes in Windows PowerShell 5.1 and PowerShell 7: the `dev=` prefix keeps the value one word, so the comma is not read as a list. Quotes are fine too. A `--line` value contains `;`, which bash, zsh and PowerShell read as the end of a command, so it **always needs quotes, as a whole, in every shell**: `--line "desc=Hosting; price=19,99; qty=2"`. `fv help amounts` prints the same advice.
+
 ### Single quotes
 
 Single quotes are fine in PowerShell and bash. In **cmd.exe** they are not quoting: the quote characters reach fv and the amount is rejected. Use double quotes.
@@ -60,9 +64,9 @@ An invoice may have many lines ([Workflow](workflow.md#several-lines-and-saved-i
 
 1. **A line's net** is its quantity times its net unit price, rounded: `--qty 3 --unit-price "33,33"` gives 99,99, and 2,5 times 33,33 (83,325) gives 83,33. A line given with `net` (or `--net`) has quantity 1 and a unit price equal to its net.
 2. **A rate's net** is the sum of the net amounts of the lines with that rate.
-3. **A rate's VAT** is that net times the rate, rounded **once per rate**, never per line. This is the method of art. 106e ust. 10-11 of the VAT act (sum the net values per rate, then compute the tax). fv writes no VAT per line, so there is no gap between the lines and the totals.
+3. **A rate's VAT** is that net times the rate, rounded **once per rate**, never per line. This is the method of art. 106e ust. 1 pkt 14 of the VAT act (the tax is computed from the sum of the net values per rate). The alternative of art. 106e ust. 10, where the total tax is the sum of per-line tax amounts shown on the invoice, is not used: fv writes no VAT per line, so there is no gap between the lines and the totals.
 4. **The gross total** (`P_15`) is the sum of the gross amounts of the rates.
-5. **In a foreign currency** each rate's VAT in PLN is the VAT in the invoice currency times the NBP mid rate, rounded; every line carries the rate.
+5. **In a foreign currency** each rate's VAT in PLN is the VAT in the invoice currency times the NBP mid rate, rounded (the conversion of art. 106e ust. 11); every line carries the rate.
 
 Example, two lines at 23%: 160 times 120,00 is 19 200,00 and 2,5 times 33,33 is 83,33, so the net is 19 283,33 and the VAT is 4 435,1659, which is **4 435,17**.
 
