@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/lwasak/fv-cli/internal/config"
 	"github.com/lwasak/fv-cli/internal/invoice"
@@ -53,7 +54,9 @@ func flagText(name, raw string) string {
 	if len(r) > 60 {
 		raw = string(r[:57]) + "..."
 	}
-	if strings.Contains(raw, `"`) {
+	// A value with a quote or an unprintable character is shown escaped, so an error message
+	// never sends raw control characters to the terminal.
+	if strings.ContainsRune(raw, '"') || strings.IndexFunc(raw, func(r rune) bool { return !unicode.IsPrint(r) && r != ' ' }) >= 0 {
 		return name + " " + fmt.Sprintf("%q", raw)
 	}
 	return name + ` "` + raw + `"`
@@ -233,6 +236,9 @@ func (s *session) resolveLines(cfg *config.Config, f issueFlags, set issueSettin
 // singleLine builds the one line the --net, --qty, --unit-price and --desc flags describe.
 func singleLine(f issueFlags, set issueSettings) (invoice.LineSpec, error) {
 	spec := invoice.LineSpec{Template: set.template, Unit: set.unit}
+	if err := validate.NoControl(f.desc); err != nil {
+		return spec, fmt.Errorf("--desc: %w", err)
+	}
 	if strings.TrimSpace(f.desc) != "" {
 		spec.Template = f.desc
 	}

@@ -191,3 +191,71 @@ func TestConfig_Items(t *testing.T) {
 		}
 	}
 }
+
+func TestNoControl(t *testing.T) {
+	for _, s := range []string{"", "Programowanie za październik", "zażółć gęślą jaźń", "a b", "emoji 😀"} {
+		if err := NoControl(s); err != nil {
+			t.Errorf("NoControl(%q) = %v", s, err)
+		}
+	}
+	bad := map[string]string{
+		"a\x01b":       "control characters are not allowed (U+0001 at character 2)",
+		"\x1b[31m":     "U+001B at character 1",
+		"a\tb":         "control characters",
+		"a\nb":         "control characters",
+		"x\x7f":        "U+007F",
+		"x\u0085":      "U+0085",
+		"x\u202ey":     "invisible formatting characters are not allowed (U+202E at character 2)",
+		"x\u2066y":     "U+2066",
+		"x\u200by":     "U+200B",
+		"\ufeffx":      "U+FEFF",
+		"x\u2028y":     "U+2028",
+		"x\ufffey":     "U+FFFE",
+		"x\xffy":       "invalid UTF-8",
+		"zażółć\x00ok": "U+0000 at character 7",
+	}
+	for s, want := range bad {
+		if err := NoControl(s); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("NoControl(%q) = %v, want %q", s, err, want)
+		}
+	}
+}
+
+func TestTextFieldsShareTheControlRule(t *testing.T) {
+	for name, err := range map[string]error{
+		"Token": Token("a\x01b", 10), "Text": Text("a\x01b", 10), "LineTemplate": LineTemplate("a\x01 {year}"),
+		"Email": Email("a\x01@b.pl"),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "control characters are not allowed") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestConfig_ControlCharactersInEveryTextKey(t *testing.T) {
+	cfg := &config.Config{
+		Seller:   config.Seller{Name: "a\x01", Address: "a\x01", PlaceOfIssue: "a\x01"},
+		Defaults: config.Defaults{BankName: "a\x01", Unit: "a\x01", LineTemplate: "a\x01", ExemptionBasis: "a\x01"},
+		Parties:  map[string]config.Party{"p": {NIP: "5260250274", Name: "a\x1b", Address: "a\u202e"}},
+		Items:    map[string]config.Item{"i": {Name: "a\x01", UnitPrice: "1", Unit: "a\x01", Index: "a\x01", PKWiU: "a\x01"}},
+	}
+	got := findingKeys(Config(cfg))
+	for _, k := range []string{"seller.name", "seller.address", "seller.place_of_issue", "defaults.bank_name", "defaults.unit",
+		"defaults.line_template", "defaults.exemption_basis", "parties.p.name", "parties.p.address",
+		"items.i.name", "items.i.unit", "items.i.index", "items.i.pkwiu"} {
+		if !strings.Contains(got[k], "not allowed") {
+			t.Errorf("%s: %q", k, got[k])
+		}
+	}
+}
+
+// N1: a padded value must pass or fail the same way in `fv config validate` and in fa3.Build.
+func TestTokenCountsTrimmedLikeBuild(t *testing.T) {
+	padded := " " + strings.Repeat("I", 50) + " "
+	if err := Token(padded, 50); err != nil {
+		t.Errorf("validate rejects a padded 50-character token: %v", err)
+	}
+	if err := Token(" "+strings.Repeat("I", 51)+" ", 50); err == nil {
+		t.Error("validate accepts 51 characters")
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/lwasak/fv-cli/internal/money"
+	"github.com/lwasak/fv-cli/internal/validate"
 )
 
 // Namespace is the FA(3) target namespace.
@@ -261,6 +262,9 @@ func buildParty1(p Party) (podmiot1, error) {
 	if strings.TrimSpace(p.Name) == "" {
 		return podmiot1{}, errors.New("seller name is required")
 	}
+	if err := checkParty("seller", p); err != nil {
+		return podmiot1{}, err
+	}
 	a, err := buildAdres("seller", p)
 	if err != nil {
 		return podmiot1{}, err
@@ -270,6 +274,16 @@ func buildParty1(p Party) (podmiot1, error) {
 		out.DaneKontaktowe = &kontakt{Email: p.Email}
 	}
 	return out, nil
+}
+
+// checkParty rejects control characters in the free text of a party.
+func checkParty(who string, p Party) error {
+	for _, f := range []struct{ what, v string }{{"name", p.Name}, {"address", p.AddressL1}, {"address line 2", p.AddressL2}, {"e-mail", p.Email}} {
+		if err := validate.NoControl(f.v); err != nil {
+			return fmt.Errorf("%s %s: %w", who, f.what, err)
+		}
+	}
+	return nil
 }
 
 func buildAdres(who string, p Party) (*adres, error) {
@@ -289,6 +303,9 @@ func buildAdres(who string, p Party) (*adres, error) {
 func buildParty2(p Party) (podmiot2, error) {
 	if strings.TrimSpace(p.Name) == "" {
 		return podmiot2{}, errors.New("buyer name is required")
+	}
+	if err := checkParty("buyer", p); err != nil {
+		return podmiot2{}, err
 	}
 	id := daneID{Nazwa: p.Name}
 	switch {
@@ -439,6 +456,11 @@ func Build(in Input) ([]byte, error) {
 		if strings.TrimSpace(l.Description) == "" {
 			return nil, fmt.Errorf("line %d has no description", i+1)
 		}
+		for _, c := range []struct{ what, v string }{{"description", l.Description}, {"unit", l.Unit}} {
+			if err := validate.NoControl(c.v); err != nil {
+				return nil, fmt.Errorf("line %d %s: %w", i+1, c.what, err)
+			}
+		}
 		for _, c := range []struct {
 			what, v string
 			max     int
@@ -507,10 +529,14 @@ func Build(in Input) ([]byte, error) {
 // checkToken rejects a value the schema (xsd:token, whitespace collapsed) would not accept:
 // blank, or longer than max characters.
 func checkToken(what, v string, max int) error {
-	if strings.TrimSpace(v) == "" {
+	if err := validate.NoControl(v); err != nil {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	t := strings.TrimSpace(v)
+	if t == "" {
 		return fmt.Errorf("%s must not be blank", what)
 	}
-	if n := len([]rune(v)); n > max {
+	if n := len([]rune(t)); n > max {
 		return fmt.Errorf("%s is %d characters; the schema allows at most %d", what, n, max)
 	}
 	return nil

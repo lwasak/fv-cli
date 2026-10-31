@@ -534,6 +534,45 @@ func TestBuild_RejectsBadBankAndLineFields(t *testing.T) {
 	}
 }
 
+// A value padded with spaces counts trimmed, as in `fv config validate` (the schema collapses
+// whitespace), so nothing that passes validation fails at issue time.
+func TestBuild_TokenLengthsCountTrimmed(t *testing.T) {
+	pad := func(n int) string { return " " + strings.Repeat("x", n) + " " }
+	in := single(t, baseInput(t), "23", 1850000, 1850000)
+	in.BankName = pad(256)
+	in.Lines[0].Index, in.Lines[0].PKWiU = pad(50), pad(50)
+	if _, err := Build(in); err != nil {
+		t.Errorf("padded values at the limit: %v", err)
+	}
+	in.Lines[0].Index = pad(51)
+	if _, err := Build(in); err == nil || !strings.Contains(err.Error(), "51 characters") {
+		t.Errorf("51 trimmed characters: %v", err)
+	}
+}
+
+func TestBuild_RejectsControlCharacters(t *testing.T) {
+	tests := []struct {
+		name string
+		mut  func(*Input)
+		want string
+	}{
+		{"description", func(in *Input) { in.Lines[0].Description = "a\x1b[31m" }, "line 1 description: control characters"},
+		{"unit", func(in *Input) { in.Lines[0].Unit = "h\x01" }, "line 1 unit: control characters"},
+		{"index", func(in *Input) { in.Lines[0].Index = "a\u202eb" }, "line 1 index: invisible formatting"},
+		{"bank name", func(in *Input) { in.BankName = "a\x01" }, "bank name: control characters"},
+		{"buyer name", func(in *Input) { in.Buyer.Name = "a\x01" }, "buyer name: control characters"},
+		{"buyer address", func(in *Input) { in.Buyer.AddressL1 = "a\x01" }, "buyer address: control characters"},
+		{"seller name", func(in *Input) { in.Seller.Name = "a\x01" }, "seller name: control characters"},
+	}
+	for _, tc := range tests {
+		in := single(t, baseInput(t), "23", 1850000, 1850000)
+		tc.mut(&in)
+		if _, err := Build(in); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v, want %q", tc.name, err, tc.want)
+		}
+	}
+}
+
 func TestBuild_RejectsTooManyLines(t *testing.T) {
 	in := single(t, baseInput(t), "23", 100, 100)
 	l := in.Lines[0]
