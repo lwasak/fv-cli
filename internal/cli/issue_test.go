@@ -339,7 +339,7 @@ func TestIssue_EnvHintAndShowOtherEnv(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "ENVIRONMENT: DEMO") || !strings.Contains(out, "was found in demo, not in the selected environment test") {
 		t.Errorf("show: %d\n%s%s", code, out, errs)
 	}
-	if code, _, errs := fx.run("show", "FV/2026/10/999"); code != 1 || !strings.Contains(errs, "not found") {
+	if code, _, errs := fx.run("show", "FV/2026/10/999"); code != 1 || !strings.Contains(errs, "is not in the archive") {
 		t.Errorf("missing invoice: %d %s", code, errs)
 	}
 }

@@ -27,9 +27,11 @@ var (
 	ErrIllegalTransition = errors.New("illegal state transition")
 	ErrImmutable         = errors.New("invoice.xml is immutable once the invoice is being sent")
 	ErrNotFound          = errors.New("invoice not found")
-	ErrLockTimeout       = errors.New("another fv process holds the archive lock")
-	ErrQuota             = errors.New("White List daily quota reached")
-	ErrHashMismatch      = errors.New("invoice.xml does not match the hash in meta.json")
+	// ErrInvalidNumber is wrapped when a number cannot be an archive folder name, so fv never issued it.
+	ErrInvalidNumber = errors.New("invalid invoice number")
+	ErrLockTimeout   = errors.New("another fv process holds the archive lock")
+	ErrQuota         = errors.New("White List daily quota reached")
+	ErrHashMismatch  = errors.New("invoice.xml does not match the hash in meta.json")
 )
 
 const (
@@ -173,7 +175,7 @@ func checkEnv(env config.Env) error {
 func folderName(number string) (string, error) {
 	n := numbering.Sanitize(number)
 	if n == "" || n == "." || n == ".." || strings.ContainsAny(n, `/\:`) || strings.ContainsRune(n, 0) {
-		return "", fmt.Errorf("invalid invoice number %q", number)
+		return "", fmt.Errorf("%w %q", ErrInvalidNumber, number)
 	}
 	return n, nil
 }

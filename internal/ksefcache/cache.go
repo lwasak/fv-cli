@@ -49,6 +49,8 @@ type Entry struct {
 	FetchedAt time.Time `json:"fetchedAt"`
 	// XMLSHA256 is the Base64 SHA-256 of the cached XML file.
 	XMLSHA256 string `json:"xmlSha256,omitempty"`
+	// XMLFetchedAt is when the XML was downloaded.
+	XMLFetchedAt time.Time `json:"xmlFetchedAt,omitzero"`
 }
 
 type index struct {
@@ -252,7 +254,7 @@ func (c *Cache) PutXML(ctx context.Context, ksefNumber string, b []byte, hash st
 		if !ok {
 			e = Entry{InvoiceMeta: ksef.InvoiceMeta{KSeFNumber: ksefNumber}, FetchedAt: c.now().UTC()}
 		}
-		e.XMLSHA256 = hash
+		e.XMLSHA256, e.XMLFetchedAt = hash, c.now().UTC()
 		idx.Entries[ksefNumber] = e
 		return nil
 	})
