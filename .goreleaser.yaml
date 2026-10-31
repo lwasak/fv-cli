@@ -1,0 +1,59 @@
+version: 2
+
+project_name: fv
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: fv
+    main: ./cmd/fv
+    binary: fv
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/lwasak/fv-cli/internal/cli.Version={{.Version}} -X github.com/lwasak/fv-cli/internal/cli.Commit={{.ShortCommit}} -X github.com/lwasak/fv-cli/internal/cli.Date={{.CommitDate}}
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: fv
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "fv_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - docs/**
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ trimprefix .Tag \"v\" }}"
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: lwasak
+    name: fv-cli
+  draft: false
+  prerelease: auto

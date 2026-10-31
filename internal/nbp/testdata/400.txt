@@ -1,0 +1,1 @@
+400 BadRequest - Bad Request - Invalid currency code

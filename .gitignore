@@ -1,0 +1,9 @@
+# Build output
+dist/
+/fv
+/fv.exe
+
+# Local author tooling (kept on disk, not published)
+groma/
+factory.app.json
+CLAUDE.md

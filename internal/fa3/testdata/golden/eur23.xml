@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>3</WariantFormularza>
+    <DataWytworzeniaFa>2026-10-30T10:15:30Z</DataWytworzeniaFa>
+    <SystemInfo>fv</SystemInfo>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>5252248481</NIP>
+      <Nazwa>Jan Kowalski Usługi IT</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Długa 1/2</AdresL1>
+      <AdresL2>80-001 Gdańsk</AdresL2>
+    </Adres>
+    <DaneKontaktowe>
+      <Email>jan@example.pl</Email>
+    </DaneKontaktowe>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <KodUE>EL</KodUE>
+      <NrVatUE>094259216</NrVatUE>
+      <Nazwa>Hellas Trading A.E.</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>GR</KodKraju>
+      <AdresL1>Ermou 15</AdresL1>
+      <AdresL2>10563 Athina</AdresL2>
+    </Adres>
+    <JST>2</JST>
+    <GV>2</GV>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>EUR</KodWaluty>
+    <P_1>2026-10-30</P_1>
+    <P_1M>Gdańsk</P_1M>
+    <P_2>FV/2026/10/001</P_2>
+    <P_6>2026-10-31</P_6>
+    <P_13_1>6019.99</P_13_1>
+    <P_14_1>1384.60</P_14_1>
+    <P_14_1W>5886.21</P_14_1W>
+    <P_15>7404.59</P_15>
+    <Adnotacje>
+      <P_16>2</P_16>
+      <P_17>2</P_17>
+      <P_18>2</P_18>
+      <P_18A>2</P_18A>
+      <Zwolnienie>
+        <P_19N>1</P_19N>
+      </Zwolnienie>
+      <NoweSrodkiTransportu>
+        <P_22N>1</P_22N>
+      </NoweSrodkiTransportu>
+      <P_23>2</P_23>
+      <PMarzy>
+        <P_PMarzyN>1</P_PMarzyN>
+      </PMarzy>
+    </Adnotacje>
+    <RodzajFaktury>VAT</RodzajFaktury>
+    <DodatkowyOpis>
+      <Klucz>Kurs waluty</Klucz>
+      <Wartosc>1 EUR = 4.2512 PLN, tabela 210/A/NBP/2026 z 2026-10-29</Wartosc>
+    </DodatkowyOpis>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa>
+      <P_7>Software development services</P_7>
+      <P_8A>h</P_8A>
+      <P_8B>80</P_8B>
+      <P_9A>75.00</P_9A>
+      <P_11>6000.00</P_11>
+      <P_12>23</P_12>
+      <KursWaluty>4.2512</KursWaluty>
+    </FaWiersz>
+    <FaWiersz>
+      <NrWierszaFa>2</NrWierszaFa>
+      <P_7>Hosting</P_7>
+      <P_8A>mies.</P_8A>
+      <P_8B>1</P_8B>
+      <P_9A>19.99</P_9A>
+      <P_11>19.99</P_11>
+      <P_12>23</P_12>
+      <KursWaluty>4.2512</KursWaluty>
+    </FaWiersz>
+    <Platnosc>
+      <TerminPlatnosci>
+        <Termin>2026-11-13</Termin>
+      </TerminPlatnosci>
+      <FormaPlatnosci>6</FormaPlatnosci>
+      <RachunekBankowy>
+        <NrRB>61109010140000071219812874</NrRB>
+      </RachunekBankowy>
+    </Platnosc>
+  </Fa>
+</Faktura>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>3</WariantFormularza>
+    <DataWytworzeniaFa>2026-10-30T10:15:30Z</DataWytworzeniaFa>
+    <SystemInfo>fv</SystemInfo>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>5252248481</NIP>
+      <Nazwa>Jan Kowalski Usługi IT</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Długa 1/2</AdresL1>
+      <AdresL2>80-001 Gdańsk</AdresL2>
+    </Adres>
+    <DaneKontaktowe>
+      <Email>jan@example.pl</Email>
+    </DaneKontaktowe>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <NIP>5260250995</NIP>
+      <Nazwa>Odbiorca Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Marszałkowska 10</AdresL1>
+      <AdresL2>00-001 Warszawa</AdresL2>
+    </Adres>
+    <JST>2</JST>
+    <GV>2</GV>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-10-30</P_1>
+    <P_1M>Gdańsk</P_1M>
+    <P_2>FV/2026/10/001</P_2>
+    <P_6>2026-10-31</P_6>
+    <P_13_7>5000.00</P_13_7>
+    <P_15>5000.00</P_15>
+    <Adnotacje>
+      <P_16>2</P_16>
+      <P_17>2</P_17>
+      <P_18>2</P_18>
+      <P_18A>2</P_18A>
+      <Zwolnienie>
+        <P_19>1</P_19>
+        <P_19A>art. 43 ust. 1 pkt 37 ustawy o VAT</P_19A>
+      </Zwolnienie>
+      <NoweSrodkiTransportu>
+        <P_22N>1</P_22N>
+      </NoweSrodkiTransportu>
+      <P_23>2</P_23>
+      <PMarzy>
+        <P_PMarzyN>1</P_PMarzyN>
+      </PMarzy>
+    </Adnotacje>
+    <RodzajFaktury>VAT</RodzajFaktury>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa>
+      <P_7>Usługi programistyczne - październik 2026</P_7>
+      <P_8A>usł.</P_8A>
+      <P_8B>1</P_8B>
+      <P_9A>5000.00</P_9A>
+      <P_11>5000.00</P_11>
+      <P_12>zw</P_12>
+    </FaWiersz>
+    <Platnosc>
+      <TerminPlatnosci>
+        <Termin>2026-11-13</Termin>
+      </TerminPlatnosci>
+      <FormaPlatnosci>6</FormaPlatnosci>
+      <RachunekBankowy>
+        <NrRB>61109010140000071219812874</NrRB>
+      </RachunekBankowy>
+    </Platnosc>
+  </Fa>
+</Faktura>
