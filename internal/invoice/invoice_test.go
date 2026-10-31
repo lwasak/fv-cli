@@ -222,10 +222,13 @@ func qty(t *testing.T, s string) *money.Quantity {
 	return &q
 }
 
+// one wraps a single line spec the way the single-line flags do.
+func one(l LineSpec) []LineSpec { return []LineSpec{l} }
+
 func TestComputeNet(t *testing.T) {
 	c, err := Compute(Request{
 		IssueDate: d(t, "2026-10-31"), SaleRule: "last_day_of_month", PaymentDays: 14,
-		Template: "Usługi IT {month_name} {year}", Unit: "usł.", Net: amt(t, "18500"), Rate: rate(t, "23"),
+		Lines: one(LineSpec{Template: "Usługi IT {month_name} {year}", Unit: "usł.", Net: amt(t, "18500"), Rate: rate(t, "23")}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -247,8 +250,8 @@ func TestComputeNet(t *testing.T) {
 
 func TestComputeQtyPrice(t *testing.T) {
 	c, err := Compute(Request{
-		IssueDate: d(t, "2026-12-20"), PaymentDays: 14, Template: "x", Unit: "h",
-		Qty: qty(t, "160,5"), UnitPrice: amt(t, "100.10"), Rate: rate(t, "8"),
+		IssueDate: d(t, "2026-12-20"), PaymentDays: 14,
+		Lines: one(LineSpec{Template: "x", Unit: "h", Qty: qty(t, "160,5"), UnitPrice: amt(t, "100.10"), Rate: rate(t, "8")}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -265,7 +268,7 @@ func TestComputeQtyPrice(t *testing.T) {
 
 func TestComputeZwAndRates(t *testing.T) {
 	for _, code := range []string{"23", "8", "5", "zw"} {
-		c, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Template: "x", Net: amt(t, "100"), Rate: rate(t, code)})
+		c, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Lines: one(LineSpec{Template: "x", Net: amt(t, "100"), Rate: rate(t, code)})})
 		if err != nil {
 			t.Fatalf("%s: %v", code, err)
 		}
@@ -275,11 +278,11 @@ func TestComputeZwAndRates(t *testing.T) {
 	}
 }
 
-func TestComputeSaleDateFlagAndDesc(t *testing.T) {
+func TestComputeSaleDateFlag(t *testing.T) {
 	flag := d(t, "2026-09-30")
 	c, err := Compute(Request{
 		IssueDate: d(t, "2026-10-05"), SaleDateFlag: &flag, SaleRule: "last_day_of_month",
-		Template: "tpl", DescFlag: "Prace za {month_name_en} {year}", Net: amt(t, "10"), Rate: rate(t, "23"),
+		Lines: one(LineSpec{Template: "Prace za {month_name_en} {year}", Net: amt(t, "10"), Rate: rate(t, "23")}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +295,7 @@ func TestComputeSaleDateFlagAndDesc(t *testing.T) {
 	}
 	// An explicit sale date may be after the issue date or in another month.
 	flag = d(t, "2026-11-02")
-	c, err = Compute(Request{IssueDate: d(t, "2026-10-05"), SaleDateFlag: &flag, Template: "{month_name}", Net: amt(t, "10"), Rate: rate(t, "23")})
+	c, err = Compute(Request{IssueDate: d(t, "2026-10-05"), SaleDateFlag: &flag, Lines: one(LineSpec{Template: "{month_name}", Net: amt(t, "10"), Rate: rate(t, "23")})})
 	if err != nil || c.SaleDate.Format("2006-01-02") != "2026-11-02" || c.Lines[0].Description != "listopad" {
 		t.Errorf("%+v %v", c, err)
 	}
@@ -300,7 +303,7 @@ func TestComputeSaleDateFlagAndDesc(t *testing.T) {
 
 func TestComputeNormalizesDates(t *testing.T) {
 	issue := time.Date(2026, 12, 31, 23, 30, 0, 0, time.UTC) // 1 Jan in Warsaw
-	c, err := Compute(Request{IssueDate: issue, PaymentDays: 0, Template: "x", Net: amt(t, "1"), Rate: rate(t, "23")})
+	c, err := Compute(Request{IssueDate: issue, PaymentDays: 0, Lines: one(LineSpec{Template: "x", Net: amt(t, "1"), Rate: rate(t, "23")})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +314,7 @@ func TestComputeNormalizesDates(t *testing.T) {
 
 func TestComputeErrors(t *testing.T) {
 	base := func() Request {
-		return Request{IssueDate: d(t, "2026-10-31"), Template: "x", Net: amt(t, "100"), Rate: rate(t, "23")}
+		return Request{IssueDate: d(t, "2026-10-31"), Lines: one(LineSpec{Template: "x", Net: amt(t, "100"), Rate: rate(t, "23")})}
 	}
 	tests := []struct {
 		name string
@@ -319,20 +322,23 @@ func TestComputeErrors(t *testing.T) {
 		want string
 	}{
 		{"no issue date", func(r *Request) { r.IssueDate = time.Time{} }, "issue date"},
-		{"no rate", func(r *Request) { r.Rate = money.Rate{} }, "rate"},
-		{"neither", func(r *Request) { r.Net = nil }, "net amount"},
-		{"net and qty", func(r *Request) { r.Qty = qty(t, "2") }, "not both"},
-		{"net and price", func(r *Request) { r.UnitPrice = amt(t, "2") }, "not both"},
-		{"all three", func(r *Request) { r.Qty = qty(t, "2"); r.UnitPrice = amt(t, "2") }, "not both"},
-		{"qty only", func(r *Request) { r.Net = nil; r.Qty = qty(t, "2") }, "together"},
-		{"price only", func(r *Request) { r.Net = nil; r.UnitPrice = amt(t, "2") }, "together"},
-		{"zero net", func(r *Request) { r.Net = new(money.Amount) }, "positive"},
-		{"net rounds to zero", func(r *Request) { r.Net = nil; r.Qty = qty(t, "0.000001"); r.UnitPrice = amt(t, "0.01") }, "net amount"},
+		{"no lines", func(r *Request) { r.Lines = nil }, "no lines"},
+		{"no rate", func(r *Request) { r.Lines[0].Rate = money.Rate{} }, "rate"},
+		{"neither", func(r *Request) { r.Lines[0].Net = nil }, "net amount"},
+		{"net and qty", func(r *Request) { r.Lines[0].Qty = qty(t, "2") }, "not both"},
+		{"net and price", func(r *Request) { r.Lines[0].UnitPrice = amt(t, "2") }, "not both"},
+		{"all three", func(r *Request) { r.Lines[0].Qty = qty(t, "2"); r.Lines[0].UnitPrice = amt(t, "2") }, "not both"},
+		{"qty only", func(r *Request) { r.Lines[0].Net = nil; r.Lines[0].Qty = qty(t, "2") }, "together"},
+		{"zero net", func(r *Request) { r.Lines[0].Net = new(money.Amount) }, "positive"},
+		{"net rounds to zero", func(r *Request) {
+			r.Lines[0].Net = nil
+			r.Lines[0].Qty = qty(t, "0.000001")
+			r.Lines[0].UnitPrice = amt(t, "0.01")
+		}, "net amount"},
 		{"bad rule", func(r *Request) { r.SaleRule = "soon" }, "soon"},
 		{"negative days", func(r *Request) { r.PaymentDays = -1 }, "negative"},
-		{"empty description", func(r *Request) { r.Template = "  " }, "description"},
-		{"bad token", func(r *Request) { r.Template = "{nope}" }, "{nope}"},
-		{"bad desc flag", func(r *Request) { r.DescFlag = "{nope}" }, "{nope}"},
+		{"empty description", func(r *Request) { r.Lines[0].Template = "  " }, "description"},
+		{"bad token", func(r *Request) { r.Lines[0].Template = "{nope}" }, "{nope}"},
 	}
 	for _, tc := range tests {
 		r := base()
@@ -341,11 +347,15 @@ func TestComputeErrors(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: got %v, want error containing %q", tc.name, err, tc.want)
 		}
+		if err != nil && strings.Contains(err.Error(), "line 1") {
+			t.Errorf("%s: a line without Source must not get a prefix: %v", tc.name, err)
+		}
 	}
 }
 
 func TestComputeIsPure(t *testing.T) {
-	r := Request{IssueDate: d(t, "2028-02-29"), SaleRule: "last_day_of_previous_month", PaymentDays: 30, Template: "{month_name} {year}", Net: amt(t, "5.55"), Rate: rate(t, "5")}
+	r := Request{IssueDate: d(t, "2028-02-29"), SaleRule: "last_day_of_previous_month", PaymentDays: 30,
+		Lines: one(LineSpec{Template: "{month_name} {year}", Net: amt(t, "5.55"), Rate: rate(t, "5")})}
 	a, err := Compute(r)
 	if err != nil {
 		t.Fatal(err)
@@ -356,5 +366,118 @@ func TestComputeIsPure(t *testing.T) {
 	}
 	if a.Lines[0] != b.Lines[0] || a.Summary.Gross != b.Summary.Gross {
 		t.Error("not deterministic")
+	}
+}
+
+func TestComputeUnitPriceWithoutQtyIsOne(t *testing.T) {
+	c, err := Compute(Request{IssueDate: d(t, "2026-10-01"),
+		Lines: one(LineSpec{Template: "x", UnitPrice: amt(t, "19,99"), Rate: rate(t, "23")})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := c.Lines[0]; l.Qty != oneUnit || l.Net != *amt(t, "19,99") || l.UnitPrice != *amt(t, "19,99") {
+		t.Errorf("line %+v", l)
+	}
+}
+
+func TestComputeMultiLine(t *testing.T) {
+	c, err := Compute(Request{
+		IssueDate: d(t, "2026-10-31"), SaleRule: "last_day_of_month",
+		Lines: []LineSpec{
+			{Source: `--item "dev=160"`, Item: "dev", Template: "Dev {month_name} {year}", Unit: "h", Qty: qty(t, "160"), UnitPrice: amt(t, "120"), Rate: rate(t, "23"), Index: "DEV-01"},
+			{Source: `--line "desc=Mix"`, Template: "Mix {month_name_en}", Unit: "szt.", Qty: qty(t, "2,5"), UnitPrice: amt(t, "33,33"), Rate: rate(t, "23"), GTIN: "5901234123457"},
+			{Source: `--line "desc=Book"`, Template: "Book", Net: amt(t, "100"), Rate: rate(t, "8"), PKWiU: "58.11"},
+			{Source: `--line "desc=Training"`, Template: "Training", Net: amt(t, "50"), Rate: rate(t, "zw")},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Lines) != 4 {
+		t.Fatalf("lines %d", len(c.Lines))
+	}
+	for i, l := range c.Lines {
+		if l.No != i+1 {
+			t.Errorf("line %d has No %d", i, l.No)
+		}
+	}
+	if c.Lines[0].Item != "dev" || c.Lines[0].Index != "DEV-01" || c.Lines[1].GTIN != "5901234123457" || c.Lines[2].PKWiU != "58.11" {
+		t.Errorf("identifiers not carried: %+v", c.Lines)
+	}
+	if c.Lines[0].Description != "Dev październik 2026" || c.Lines[1].Description != "Mix October" {
+		t.Errorf("tokens: %q %q", c.Lines[0].Description, c.Lines[1].Description)
+	}
+	// 160 x 120,00 = 19 200,00 and 2,5 x 33,33 = 83,325 -> 83,33; net 19 283,33.
+	if c.Lines[1].Net != *amt(t, "83,33") {
+		t.Errorf("line 2 net %d", c.Lines[1].Net)
+	}
+	want := map[string][3]money.Amount{
+		"23": {*amt(t, "19283,33"), *amt(t, "4435,17"), *amt(t, "23718,50")},
+		"8":  {*amt(t, "100"), *amt(t, "8"), *amt(t, "108")},
+		"zw": {*amt(t, "50"), 0, *amt(t, "50")},
+	}
+	if len(c.Summary.Groups) != len(want) {
+		t.Fatalf("groups %+v", c.Summary.Groups)
+	}
+	for _, g := range c.Summary.Groups {
+		w := want[g.Rate.Code]
+		if g.Net != w[0] || g.VAT != w[1] || g.Gross != w[2] {
+			t.Errorf("group %s = %+v, want %v", g.Rate.Code, g, w)
+		}
+	}
+	if c.Summary.Gross != *amt(t, "23876,50") {
+		t.Errorf("gross %d", c.Summary.Gross)
+	}
+}
+
+// Three lines of 0,02 at 23% give VAT 0,01 on the group; rounding each line would give 0,00.
+func TestComputeVATIsRoundedPerRateGroup(t *testing.T) {
+	var lines []LineSpec
+	for i := 0; i < 3; i++ {
+		lines = append(lines, LineSpec{Template: "x", Net: amt(t, "0,02"), Rate: rate(t, "23")})
+	}
+	c, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Lines: lines})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := c.Summary.Groups[0]
+	if g.Net != 6 || g.VAT != 1 || g.Gross != 7 {
+		t.Errorf("group %+v, want net 6 VAT 1 gross 7", g)
+	}
+}
+
+func TestComputeLineErrorsNameTheLine(t *testing.T) {
+	ok := LineSpec{Source: `--item "dev"`, Template: "x", Net: amt(t, "1"), Rate: rate(t, "23")}
+	tests := []struct {
+		name string
+		bad  LineSpec
+		want string
+	}{
+		{"no amount", LineSpec{Source: `--line "desc=Hosting"`, Template: "x", Rate: rate(t, "23")}, `line 2 (--line "desc=Hosting"): give a net amount`},
+		{"net and qty", LineSpec{Source: "S", Template: "x", Net: amt(t, "1"), Qty: qty(t, "2"), Rate: rate(t, "23")}, "line 2 (S): give either net"},
+		{"no rate", LineSpec{Source: "S", Template: "x", Net: amt(t, "1")}, "line 2 (S): VAT rate is required"},
+		{"bad token", LineSpec{Source: "S", Template: "{nope}", Net: amt(t, "1"), Rate: rate(t, "23")}, "line 2 (S): "},
+		{"empty description", LineSpec{Source: "S", Template: " ", Net: amt(t, "1"), Rate: rate(t, "23")}, "line 2 (S): line description is empty"},
+	}
+	for _, tc := range tests {
+		_, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Lines: []LineSpec{ok, tc.bad}})
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v, want %q", tc.name, err, tc.want)
+		}
+	}
+}
+
+func TestComputeLineLimit(t *testing.T) {
+	spec := LineSpec{Template: "x", Net: amt(t, "1"), Rate: rate(t, "23")}
+	lines := make([]LineSpec, MaxLines)
+	for i := range lines {
+		lines[i] = spec
+	}
+	if c, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Lines: lines}); err != nil || len(c.Lines) != MaxLines {
+		t.Fatalf("%d lines: %v", MaxLines, err)
+	}
+	_, err := Compute(Request{IssueDate: d(t, "2026-10-01"), Lines: append(lines, spec)})
+	if err == nil || !strings.Contains(err.Error(), "10000") {
+		t.Errorf("10001 lines: %v", err)
 	}
 }

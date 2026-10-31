@@ -295,7 +295,10 @@ func (s *session) buildRequest(f issueFlags, set issueSettings) (invoice.Request
 	now := s.deps.now()
 	req := invoice.Request{
 		IssueDate: invoice.Today(now), SaleRule: set.saleRule, PaymentDays: set.paymentDays,
-		Template: set.template, DescFlag: f.desc, Unit: set.unit, Rate: set.rate,
+	}
+	spec := invoice.LineSpec{Template: set.template, Unit: set.unit, Rate: set.rate}
+	if strings.TrimSpace(f.desc) != "" {
+		spec.Template = f.desc
 	}
 	var err error
 	if f.issueDate != "" {
@@ -315,22 +318,26 @@ func (s *session) buildRequest(f issueFlags, set issueSettings) (invoice.Request
 		if err != nil {
 			return req, fmt.Errorf("--net: %w", err)
 		}
-		req.Net = &a
+		spec.Net = &a
 	}
 	if f.qty != "" {
 		q, err := money.ParseQuantity(f.qty)
 		if err != nil {
 			return req, fmt.Errorf("--qty: %w", err)
 		}
-		req.Qty = &q
+		spec.Qty = &q
 	}
 	if f.unitPrice != "" {
 		a, err := money.ParseAmount(f.unitPrice)
 		if err != nil {
 			return req, fmt.Errorf("--unit-price: %w", err)
 		}
-		req.UnitPrice = &a
+		spec.UnitPrice = &a
 	}
+	if f.unitPrice != "" && f.qty == "" && f.net == "" {
+		return req, errors.New("quantity and unit price must be given together")
+	}
+	req.Lines = []invoice.LineSpec{spec}
 	return req, nil
 }
 
