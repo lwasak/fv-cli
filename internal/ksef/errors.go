@@ -3,6 +3,7 @@ package ksef
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -31,6 +32,43 @@ func (e *Error) Error() string {
 		return fmt.Sprintf("KSeF HTTP %d", e.HTTPStatus)
 	}
 	return fmt.Sprintf("KSeF error %d: %s", e.Code, e.Description)
+}
+
+// RetryAfter is the delay the Retry-After header of a 429 asked for, or 0 when there was none.
+func (e *Error) RetryAfter() time.Duration { return e.retryAfter }
+
+func asError(err error) *Error {
+	var ke *Error
+	if errors.As(err, &ke) {
+		return ke
+	}
+	return nil
+}
+
+// IsRateLimited reports a 429 answer.
+func IsRateLimited(err error) bool {
+	ke := asError(err)
+	return ke != nil && ke.HTTPStatus == 429
+}
+
+// IsForbidden reports a 403 answer: the credential lacks a permission (for the invoice
+// endpoints, InvoiceRead).
+func IsForbidden(err error) bool {
+	ke := asError(err)
+	return ke != nil && ke.HTTPStatus == 403
+}
+
+// IsNoSuchInvoice reports KSeF error 21164: there is no invoice with that KSeF number.
+func IsNoSuchInvoice(err error) bool {
+	ke := asError(err)
+	return ke != nil && ke.Code == 21164
+}
+
+// IsNotYetAvailable reports KSeF error 21165: the invoice was processed but cannot be
+// downloaded yet; trying again later works.
+func IsNotYetAvailable(err error) bool {
+	ke := asError(err)
+	return ke != nil && ke.Code == 21165
 }
 
 // maxErrorBody bounds how much of an error body is parsed.
