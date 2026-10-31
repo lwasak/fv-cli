@@ -74,7 +74,7 @@ func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *kse
 	defer stop()
 	client, sess, err := s.ksefLogin(ctx, rc, l)
 	if err != nil {
-		return nil, err
+		return nil, loginFailure(err)
 	}
 	b, hash, err := client.DownloadInvoice(ctx, sess, ksefNo)
 	switch {

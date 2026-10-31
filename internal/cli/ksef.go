@@ -131,3 +131,21 @@ func (s *session) ksefAuth(ctx context.Context, rc *runContext, l *slog.Logger) 
 	}
 	return client, sess, certReport{info: info, ctxNIP: ctxNIP}, nil
 }
+
+// loginFailure words a failed KSeF login for the commands that read from KSeF (list, show). A
+// failure that says KSeF could not be reached, is failing or is rate limiting is an ordinary
+// error (exit code 1); only a refusal of the credential or of the login stays an
+// authentication failure (exit code 3).
+func loginFailure(err error) error {
+	if err == nil || !errors.Is(err, ksef.ErrAuth) {
+		return err
+	}
+	cause := ksef.WithoutAuthMark(err)
+	switch {
+	case ksef.IsRateLimited(cause):
+		return fmt.Errorf("KSeF is limiting requests, try again later: %w", cause)
+	case ksef.IsUnreachable(cause):
+		return fmt.Errorf("KSeF unreachable: %w", cause)
+	}
+	return err
+}

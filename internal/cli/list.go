@@ -56,8 +56,8 @@ func newListCmd(s *session) *cobra.Command {
 			"is asked.\n\n" +
 			"Only the table goes to stdout (or `no invoices`); the range, counts and warnings go to stderr. " +
 			"The archive rows are always shown, also when KSeF cannot be queried. Exit codes: 0 ok (also when no " +
-			"certificate has been imported yet), 1 usage, config or a failed query (rate limit, network, missing " +
-			"InvoiceRead permission), 3 the login or the certificate failed.\n\n" +
+			"certificate has been imported yet), 1 usage, config, KSeF unreachable or failing (network, 5xx, rate " +
+			"limit) or a failed query (missing InvoiceRead permission), 3 the login or the certificate was refused.\n\n" +
 			"Without a config file the archive of every environment is listed and KSeF is not asked.",
 		Example: "  fv list\n  fv list --month 2026-09\n  fv list --from 2026-07-01 --to 2026-09-30 --as buyer\n" +
 			"  fv list --offline --wide\n  fv --env prod list --as seller",
@@ -173,7 +173,7 @@ func (s *session) syncKSeF(cmd *cobra.Command, rc *runContext, cache *ksefcache.
 			_, _ = fmt.Fprintf(errw, "KSeF not queried: no certificate for %s, run `fv init` to import one\n", rc.Env)
 			return nil, nil
 		}
-		return nil, fmt.Errorf("KSeF not queried: %w", err)
+		return nil, fmt.Errorf("KSeF not queried: %w", loginFailure(err))
 	}
 	var subjects []ksef.SubjectType
 	switch side {

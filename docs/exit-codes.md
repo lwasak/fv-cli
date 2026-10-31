@@ -7,7 +7,7 @@ fv sets its process exit code so scripts can tell apart "fix your input", "try a
 | 0 | ok | The command did what it says. |
 | 1 | usage or config | Bad input, an invalid or missing config, an unknown party or invoice, or fv refused to act (for example a draft in the wrong state). Also any error without a more specific code. |
 | 2 | registry | A lookup at the White List, VIES or NBP failed or was refused, and there was no cached copy to fall back on; or the White List quota stopped a refresh. |
-| 3 | auth | The KSeF login or the credential failed: no certificate imported, expired or not yet valid, NIP mismatch, key file readable by others, wrong or missing passphrase, or KSeF refused the login. |
+| 3 | auth | The KSeF login or the credential failed: no certificate imported, expired or not yet valid, NIP mismatch, key file readable by others, wrong or missing passphrase, or KSeF refused the login. `fv list` and `fv show` use 1 instead when KSeF could not be reached at the login (network error, timeout, 5xx, 429). |
 | 4 | rejected | KSeF rejected the invoice. Code, description and details are printed. |
 | 5 | unknown | The outcome at KSeF is not known. The invoice may or may not be there. Run `fv status`. |
 | 10 | aborted | You answered no (or typed anything but `PRODUCTION`), there was no terminal to ask on, or you pressed Ctrl-C at a prompt. **Nothing was sent.** |
@@ -26,7 +26,9 @@ fv sets its process exit code so scripts can tell apart "fix your input", "try a
 | `fv issue --send`, `fv send` | 0, 1, 2 (issue step only), 3, 4, 5, 10 |
 | `fv status` | 0, 1, 3, 4, 5 |
 
-`fv list` prints the rows it has even when KSeF could not be asked: exit 3 when the login or the credential failed, exit 1 when KSeF was unreachable, answered 5xx, 403 (the certificate lacks the InvoiceRead permission) or 429, or the per-run query budget ran out. A missing certificate is only a note (exit 0). `fv show` exits 3 when it needs a download and cannot log in, and 1 when the invoice is unknown, ambiguous, not yet downloadable or its cached copy fails the hash check.
+`fv list` prints the rows it has even when KSeF could not be asked. It exits 3 only when the credential or the login was refused (no usable certificate, wrong passphrase, KSeF answering 4xx to the login). It exits 1 when KSeF was unreachable (no connection, a reset, a timeout, or no answer within the login wait), answered 5xx or 429 at the login or later, answered 403 (the certificate lacks the InvoiceRead permission), or when the per-run query budget ran out. A missing certificate is only a note (exit 0).
+
+`fv show` follows the same split when it needs a download: 3 when the login is refused, 1 when KSeF is unreachable or failing. It also exits 1 when the invoice is unknown, ambiguous, not found in KSeF, not yet downloadable, or its downloaded or cached copy fails the hash check. With `--offline` it never contacts KSeF.
 
 `fv status` exits 0 when it found the invoice accepted, when the invoice is a draft or a discarded draft (it only reports that), and when it put an invoice that KSeF never received back to `draft`. It exits 4 for a rejected invoice and 5 when the answer is still pending.
 

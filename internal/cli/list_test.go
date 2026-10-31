@@ -494,3 +494,47 @@ func TestList_OddKSeFRecordIsSkippedWithAWarning(t *testing.T) {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 }
+
+func TestList_LoginTransportOr5xxFailureIsExit1AndKeepsTheArchiveRows(t *testing.T) {
+	for name, set := range map[string]func(*listFx){
+		"challenge 503": func(fx *listFx) { fx.fake.Respond("POST", "/auth/challenge", 503, "down") },
+		"connection reset": func(fx *listFx) {
+			fx.fake.Inject("POST", "/auth/challenge", 100, ksefake.Response{Drop: true})
+		},
+		"signature 500": func(fx *listFx) { fx.fake.Respond("POST", "/auth/xades-signature", 500, "oops") },
+		"challenge 429": func(fx *listFx) { fx.fake.Respond("POST", "/auth/challenge", 429, "slow down") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			fx := newListFx(t)
+			set(fx)
+			code, out, errs := fx.run("list")
+			if code != 1 {
+				t.Errorf("exit %d, want 1: %s", code, errs)
+			}
+			if !strings.Contains(errs, "KSeF not queried") || !(strings.Contains(errs, "unreachable") || strings.Contains(errs, "limiting")) {
+				t.Errorf("stderr = %q", errs)
+			}
+			if !strings.Contains(out, "FV/2026/10/001") {
+				t.Errorf("the archive rows are missing:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestList_LoginRefusalStaysExit3(t *testing.T) {
+	fx := newListFx(t)
+	fx.fake.Respond("POST", "/auth/xades-signature", 401, `{"title":"Unauthorized","status":401,"detail":"Brak uprawnień"}`)
+	code, out, errs := fx.run("list")
+	if code != 3 || !strings.Contains(out, "FV/2026/10/001") {
+		t.Errorf("exit %d: %s\n%s", code, errs, out)
+	}
+}
+
+func TestShow_LoginServerDownIsExit1(t *testing.T) {
+	fx := newListFx(t)
+	fx.fake.Respond("POST", "/auth/challenge", 503, "down")
+	code, out, errs := fx.run("show", fx.purchaseNo)
+	if code != 1 || out != "" || !strings.Contains(errs, "KSeF unreachable") {
+		t.Errorf("exit %d out %q err %q", code, out, errs)
+	}
+}

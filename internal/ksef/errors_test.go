@@ -3,6 +3,9 @@ package ksef
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -227,5 +230,31 @@ func TestDo_GETRetryStopsWhenSleepIsCancelled(t *testing.T) {
 	c.sleep = func(context.Context, time.Duration) error { return context.Canceled }
 	if _, err := c.do(context.Background(), "GET", "/x", "", nil, ""); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestIsUnreachable(t *testing.T) {
+	timeout := &url.Error{Op: "Post", URL: "https://x", Err: context.DeadlineExceeded}
+	for name, c := range map[string]struct {
+		err  error
+		want bool
+	}{
+		"503":          {&Error{HTTPStatus: 503}, true},
+		"500 wrapped":  {fmt.Errorf("ksef: x: %w", &Error{HTTPStatus: 500}), true},
+		"transport":    {fmt.Errorf("ksef: POST /x: %w", timeout), true},
+		"truncated":    {fmt.Errorf("read: %w", io.ErrUnexpectedEOF), true},
+		"poll timeout": {ErrAuthTimeout, true},
+		"401":          {&Error{HTTPStatus: 401}, false},
+		"429":          {&Error{HTTPStatus: 429}, false},
+		"interrupt":    {&url.Error{Op: "Post", URL: "https://x", Err: context.Canceled}, false},
+		"other":        {errors.New("boom"), false},
+		"nil":          {nil, false},
+	} {
+		if got := IsUnreachable(c.err); got != c.want {
+			t.Errorf("%s: IsUnreachable = %v, want %v", name, got, c.want)
+		}
+	}
+	if err := WithoutAuthMark(authFail(&Error{HTTPStatus: 503})); errors.Is(err, ErrAuth) || !IsUnreachable(err) {
+		t.Errorf("WithoutAuthMark = %v", err)
 	}
 }

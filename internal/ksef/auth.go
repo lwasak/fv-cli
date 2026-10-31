@@ -26,6 +26,21 @@ func (e *authError) Is(target error) bool { return target == ErrAuth }
 
 func authFail(err error) error { return &authError{err: err} }
 
+// ErrAuthTimeout is returned (inside an ErrAuth failure) when KSeF did not finish the
+// authentication within the polling budget.
+var ErrAuthTimeout = errors.New("ksef: timed out waiting for the authentication to complete (90 s)")
+
+// WithoutAuthMark returns the cause of a login failure without the ErrAuth marking, so a
+// caller that decides the failure is not a credential problem (KSeF was unreachable) can
+// report it with another exit code. Other errors come back unchanged.
+func WithoutAuthMark(err error) error {
+	var ae *authError
+	if errors.As(err, &ae) {
+		return ae.err
+	}
+	return err
+}
+
 // Credential is the login certificate and its one-shot signer; *credentials.Credential
 // satisfies it.
 type Credential interface {
@@ -146,7 +161,7 @@ func (c *Client) waitForAuth(ctx context.Context, ref, bearer string) error {
 			// A transport error counts as one more attempt.
 		}
 		if c.now().Sub(start) >= pollBudget {
-			return errors.New("ksef: timed out waiting for the authentication to complete (90 s)")
+			return ErrAuthTimeout
 		}
 		if err := c.sleep(ctx, delay); err != nil {
 			return err

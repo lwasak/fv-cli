@@ -2,9 +2,12 @@ package ksef
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +52,23 @@ func asError(err error) *Error {
 func IsRateLimited(err error) bool {
 	ke := asError(err)
 	return ke != nil && ke.HTTPStatus == 429
+}
+
+// IsUnreachable reports a failure that says KSeF could not be reached or is failing, not that
+// the caller is wrong: a transport error (no connection, reset, timeout, truncated answer),
+// an HTTP 5xx answer, or the login poll running out of time. A user interrupt does not count.
+func IsUnreachable(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	if ke := asError(err); ke != nil {
+		return ke.HTTPStatus >= 500
+	}
+	if errors.Is(err, ErrAuthTimeout) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+		return true
+	}
+	var ne net.Error
+	return errors.As(err, &ne)
 }
 
 // IsForbidden reports a 403 answer: the credential lacks a permission (for the invoice
