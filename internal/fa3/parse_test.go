@@ -171,7 +171,7 @@ func TestParse_Correction(t *testing.T) {
 	if d.Kind != "KOR" || d.CorrectionReason != "Zmniejszenie ilości usług" || d.CorrectionType != "1" {
 		t.Errorf("header %+v", d)
 	}
-	if len(d.Corrected) != 1 || d.Corrected[0] != (CorrectedRef{Number: "FV/2026/10/001", IssueDate: "2026-10-05", KSeFNumber: "5252248481-20261005-010020A0A242-0A"}) {
+	if len(d.Corrected) != 1 || d.Corrected[0] != (CorrectedRef{Number: "FV/2026/10/001", IssueDate: "2026-10-05", KSeFNumber: "5252248481-20261005-010020A0A242-9A"}) {
 		t.Errorf("corrected %+v", d.Corrected)
 	}
 	if !d.HasGross || d.Gross != -12300 || len(d.Totals) != 1 || d.Totals[0].Net != -10000 || d.Totals[0].VAT != -2300 {
