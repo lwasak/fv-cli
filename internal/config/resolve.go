@@ -88,6 +88,37 @@ func (r *Resolver) Int(key string) (int, Layer, bool, error) {
 	return 0, layer, false, fmt.Errorf("setting %q from %s: want integer, got %T", key, layer, v)
 }
 
+// StringFrom reads one string key from one layer only, without falling through to the
+// others. It exists for keys that must come from the same layer as another key, such as
+// bank_name and swift, which describe the bank_account of that layer. ok is false when the
+// layer does not set the key.
+func (r *Resolver) StringFrom(key string, layer Layer) (string, bool, error) {
+	var (
+		v  any
+		ok bool
+	)
+	switch layer {
+	case LayerFlag:
+		v, ok = r.flags[key]
+	case LayerParty:
+		if p, found := r.cfg.Parties[r.alias]; found {
+			v, ok = partyValue(p, key)
+		}
+	case LayerDefaults:
+		v, ok = defaultsValue(r.cfg.Defaults, key)
+	case LayerRegistry:
+		v, ok = r.registry.Lookup(r.alias, key)
+	}
+	if !ok {
+		return "", false, nil
+	}
+	s, isString := v.(string)
+	if !isString {
+		return "", false, fmt.Errorf("setting %q from %s: want string, got %T", key, layer, v)
+	}
+	return s, true, nil
+}
+
 func (r *Resolver) lookup(key string) (any, Layer, bool) {
 	if v, ok := r.flags[key]; ok {
 		return v, LayerFlag, true
@@ -110,7 +141,7 @@ func partyValue(p Party, key string) (any, bool) {
 	return pick(key, p.PaymentDays, map[string]string{
 		"vat_rate": p.VatRate, "bank_account": p.BankAccount, "currency": p.Currency,
 		"sale_date": p.SaleDate, "line_template": p.LineTemplate, "unit": p.Unit,
-		"exemption_basis": p.ExemptionBasis,
+		"exemption_basis": p.ExemptionBasis, "bank_name": p.BankName, "swift": p.SWIFT,
 	})
 }
 
@@ -118,7 +149,7 @@ func defaultsValue(d Defaults, key string) (any, bool) {
 	return pick(key, d.PaymentDays, map[string]string{
 		"vat_rate": d.VatRate, "bank_account": d.BankAccount, "currency": d.Currency,
 		"sale_date": d.SaleDate, "line_template": d.LineTemplate, "unit": d.Unit,
-		"exemption_basis": d.ExemptionBasis,
+		"exemption_basis": d.ExemptionBasis, "bank_name": d.BankName, "swift": d.SWIFT,
 	})
 }
 

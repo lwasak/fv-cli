@@ -237,6 +237,24 @@ Statutory basis of a VAT exemption (zw), written to P_19A.
 - Allowed: `1-256 characters`
 - Example: `exemption_basis = "art. 43 ust. 1 pkt 37 ustawy o VAT"`
 
+### `defaults.bank_name`
+
+Name of the bank that holds the seller's account, written next to the account.
+
+- Type: `string`
+- Default: `none (NazwaBanku omitted)`
+- Allowed: `1-256 characters`
+- Example: `bank_name = "mBank S.A."`
+
+### `defaults.swift`
+
+SWIFT/BIC code of the seller's bank, written next to the account.
+
+- Type: `string`
+- Default: `none (SWIFT omitted)`
+- Allowed: `8 or 11 characters BIC: 6 letters, 2 letters/digits, optional 3 letters/digits; spaces and lower case are normalised`
+- Example: `swift = "BREXPLPW"`
+
 ## Table `[numbering]`
 
 ### `numbering.pattern`
@@ -377,3 +395,115 @@ Per-party VAT exemption basis override.
 - Default: `none (falls back to defaults.exemption_basis)`
 - Allowed: `same as defaults.exemption_basis`
 - Example: `exemption_basis = "art. 43 ust. 1 pkt 37 ustawy o VAT"`
+
+### `parties.<alias>.bank_name`
+
+Bank name of the party's own bank_account.
+
+- Type: `string`
+- Default: `none (taken with the account from the same table)`
+- Allowed: `same as defaults.bank_name; needs bank_account in the same table`
+- Example: `bank_name = "ING Bank Śląski"`
+
+### `parties.<alias>.swift`
+
+SWIFT/BIC of the party's own bank_account.
+
+- Type: `string`
+- Default: `none (taken with the account from the same table)`
+- Allowed: `same as defaults.swift; needs bank_account in the same table`
+- Example: `swift = "INGBPLPW"`
+
+### `parties.<alias>.items`
+
+Saved items billed to this party when no --net, --qty, --item or --line is given.
+
+- Type: `array of strings`
+- Default: `none (lines come from flags)`
+- Allowed: `keys of [items.<key>], at least one`
+- Example: `items = ["dev", "support"]`
+
+## Table `[items.<key>]`
+
+A saved invoice line. Define it once, bill it by key with `fv issue --item <key>[=<qty>]`, or list keys in `parties.<alias>.items` for an invoice that needs no flags. Quote prices and quantities (`unit_price = "120,00"`): a TOML number is not money and is rejected.
+
+### `items.<key>.name`
+
+Line description of the saved item.
+
+- Type: `string`
+- Default: `none (required)`
+- Allowed: `text with the tokens {month_name} {month_name_en} {year}, 1-512 characters`
+- Example: `name = "Programming services {month_name} {year}"`
+
+### `items.<key>.unit`
+
+Unit of measure of the saved item.
+
+- Type: `string`
+- Default: `none (falls back to the party's or defaults' unit)`
+- Allowed: `1-256 characters`
+- Example: `unit = "h"`
+
+### `items.<key>.unit_price`
+
+Net unit price, in the invoice currency; quote it, a TOML number is rejected.
+
+- Type: `string`
+- Default: `none (required)`
+- Allowed: `amount in zloty, e.g. "120,00" or "120.00" (quoted)`
+- Example: `unit_price = "120,00"`
+
+### `items.<key>.quantity`
+
+Default quantity; a quantity given on the command line with --item overrides it.
+
+- Type: `string`
+- Default: `1`
+- Allowed: `positive, up to 6 decimals (quoted)`
+- Example: `quantity = "160"`
+
+### `items.<key>.vat_rate`
+
+VAT rate of the saved item; it beats the invoice-wide --rate.
+
+- Type: `string`
+- Default: `none (--rate, then party, then defaults)`
+- Allowed: `same as defaults.vat_rate`
+- Example: `vat_rate = "23"`
+
+### `items.<key>.currency`
+
+Currency the price is stated in; issuing in another currency is an error, never a conversion.
+
+- Type: `string`
+- Default: `none (the price is in the invoice currency)`
+- Allowed: `same as defaults.currency`
+- Example: `currency = "EUR"`
+
+### `items.<key>.index`
+
+Internal item index (Indeks) written on the line.
+
+- Type: `string`
+- Default: `none (Indeks omitted)`
+- Allowed: `1-50 characters`
+- Example: `index = "DEV-01"`
+
+### `items.<key>.pkwiu`
+
+PKWiU classification written on the line.
+
+- Type: `string`
+- Default: `none (PKWiU omitted)`
+- Allowed: `1-50 characters`
+- Example: `pkwiu = "62.01.11.0"`
+
+### `items.<key>.gtin`
+
+GTIN (barcode) written on the line.
+
+- Type: `string`
+- Default: `none (GTIN omitted)`
+- Allowed: `8, 12, 13 or 14 digits with a valid GS1 check digit`
+- Example: `gtin = "5901234123457"`

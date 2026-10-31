@@ -104,3 +104,65 @@ func TestResolver_NewKeys(t *testing.T) {
 		t.Errorf("empty party unit: %q %v %v", got, layer, ok)
 	}
 }
+
+func TestResolver_StringFrom(t *testing.T) {
+	cfg := &Config{
+		Defaults: Defaults{BankAccount: "D-IBAN", BankName: "Default Bank", SWIFT: "DEFAPLPW"},
+		Parties: map[string]Party{
+			"own":  {BankAccount: "P-IBAN", BankName: "Party Bank"},
+			"bare": {},
+		},
+	}
+	reg := fakeRegistry{"own/bank_name": "Registry Bank"}
+	r := NewResolver(cfg, "own", map[string]any{"bank_name": "Flag Bank"}, reg)
+	tests := []struct {
+		key   string
+		layer Layer
+		want  string
+		ok    bool
+	}{
+		{"bank_name", LayerFlag, "Flag Bank", true},
+		{"bank_name", LayerParty, "Party Bank", true},
+		{"swift", LayerParty, "", false}, // no fall-through to defaults
+		{"bank_name", LayerDefaults, "Default Bank", true},
+		{"swift", LayerDefaults, "DEFAPLPW", true},
+		{"bank_name", LayerRegistry, "Registry Bank", true},
+		{"swift", LayerRegistry, "", false},
+		{"bank_name", Layer(0), "", false},
+	}
+	for _, tc := range tests {
+		got, ok, err := r.StringFrom(tc.key, tc.layer)
+		if err != nil || ok != tc.ok || got != tc.want {
+			t.Errorf("StringFrom(%s,%v) = %q,%v,%v; want %q,%v", tc.key, tc.layer, got, ok, err, tc.want, tc.ok)
+		}
+	}
+	// a party that is not in the config has no party layer
+	if _, ok, _ := NewResolver(cfg, "ghost", nil, nil).StringFrom("bank_name", LayerParty); ok {
+		t.Error("unknown party must not have a party layer")
+	}
+	// wrong type from a layer is an error
+	bad := NewResolver(cfg, "own", map[string]any{"bank_name": 5}, nil)
+	if _, _, err := bad.StringFrom("bank_name", LayerFlag); err == nil {
+		t.Error("want a type error")
+	}
+}
+
+// The bank group rule: a party's own account must not pick up the defaults' bank name.
+func TestResolver_BankGroupFollowsAccountLayer(t *testing.T) {
+	cfg := &Config{
+		Defaults: Defaults{BankAccount: "D-IBAN", BankName: "Default Bank"},
+		Parties:  map[string]Party{"own": {BankAccount: "P-IBAN"}},
+	}
+	r := NewResolver(cfg, "own", nil, nil)
+	_, layer, ok, _ := r.String("bank_account")
+	if !ok || layer != LayerParty {
+		t.Fatalf("account layer = %v %v", layer, ok)
+	}
+	if name, ok, _ := r.StringFrom("bank_name", layer); ok {
+		t.Errorf("party account got bank name %q from another layer", name)
+	}
+	// plain String still falls through; the rule is applied by the caller via StringFrom.
+	if name, l, ok, _ := r.String("bank_name"); !ok || name != "Default Bank" || l != LayerDefaults {
+		t.Errorf("String(bank_name) = %q %v %v", name, l, ok)
+	}
+}

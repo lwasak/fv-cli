@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 var aliasRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
@@ -13,6 +14,27 @@ var aliasRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 func PartyAlias(a string) error {
 	if !aliasRE.MatchString(a) {
 		return fmt.Errorf("alias %q is not valid; use 1-32 characters a-z 0-9 _ -, starting with a letter or digit", a)
+	}
+	return nil
+}
+
+// ItemKey checks the key of an [items.<key>] table: same shape as a party alias.
+func ItemKey(k string) error {
+	if !aliasRE.MatchString(k) {
+		return fmt.Errorf("item key %q is not valid; use 1-32 characters a-z 0-9 _ -, starting with a letter or digit", k)
+	}
+	return nil
+}
+
+// Token checks a text that the invoice schema stores as a token: whitespace is collapsed,
+// so after trimming it must be 1..max characters (runes) and not blank.
+func Token(s string, max int) error {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return errors.New("must not be blank")
+	}
+	if n := len([]rune(t)); n > max {
+		return fmt.Errorf("must be 1-%d characters, got %d", max, n)
 	}
 	return nil
 }

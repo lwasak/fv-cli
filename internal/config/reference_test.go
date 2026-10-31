@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// tomlKeys walks the toml tags of t and returns every leaf key path; map keys become <alias>.
+// tomlKeys walks the toml tags of t and returns every leaf key path; map keys become <alias> (<key> for items).
 func tomlKeys(t reflect.Type, prefix string, out *[]string) {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -30,7 +30,11 @@ func tomlKeys(t reflect.Type, prefix string, out *[]string) {
 		case reflect.Struct:
 			tomlKeys(ft, path, out)
 		case reflect.Map:
-			tomlKeys(ft.Elem(), path+".<alias>", out)
+			ph := "<alias>"
+			if tag == "items" {
+				ph = "<key>"
+			}
+			tomlKeys(ft.Elem(), path+"."+ph, out)
 		default:
 			*out = append(*out, path)
 		}

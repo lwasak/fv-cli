@@ -1,10 +1,13 @@
 package validate
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/lwasak/fv-cli/internal/config"
+	"github.com/lwasak/fv-cli/internal/money"
 )
 
 // Finding is one problem in the config, tied to a key path.
@@ -28,6 +31,8 @@ type settings struct {
 	template string
 	unit     string
 	basis    string
+	bankName string
+	swift    string
 }
 
 // Config checks every setting and returns all findings, ordered by key.
@@ -67,6 +72,13 @@ func Config(cfg *config.Config) []Finding {
 		}
 		checkTextKey(prefix+"unit", st.unit, 256)
 		checkTextKey(prefix+"exemption_basis", st.basis, 256)
+		if st.bankName != "" {
+			add(prefix+"bank_name", Token(st.bankName, 256))
+		}
+		if st.swift != "" {
+			_, err := SWIFT(st.swift)
+			add(prefix+"swift", err)
+		}
 	}
 	checkTextKey("seller.name", cfg.Seller.Name, 512)
 	checkTextKey("seller.address", cfg.Seller.Address, 512)
@@ -75,7 +87,7 @@ func Config(cfg *config.Config) []Finding {
 		add("seller.email", Email(cfg.Seller.Email))
 	}
 	d := cfg.Defaults
-	checkSettings("defaults.", settings{d.VatRate, d.PaymentDays, d.BankAccount, d.Currency, d.SaleDate, d.LineTemplate, d.Unit, d.ExemptionBasis})
+	checkSettings("defaults.", settings{d.VatRate, d.PaymentDays, d.BankAccount, d.Currency, d.SaleDate, d.LineTemplate, d.Unit, d.ExemptionBasis, d.BankName, d.SWIFT})
 	if cfg.Numbering.Pattern != "" {
 		add("numbering.pattern", NumberingPattern(cfg.Numbering.Pattern))
 	}
@@ -101,9 +113,100 @@ func Config(cfg *config.Config) []Finding {
 			add("parties."+a, err)
 		}
 		add("parties."+a, PartyIdentity(p.NIP, p.VatID))
-		checkSettings("parties."+a+".", settings{p.VatRate, p.PaymentDays, p.BankAccount, p.Currency, p.SaleDate, p.LineTemplate, p.Unit, p.ExemptionBasis})
+		checkSettings("parties."+a+".", settings{p.VatRate, p.PaymentDays, p.BankAccount, p.Currency, p.SaleDate, p.LineTemplate, p.Unit, p.ExemptionBasis, p.BankName, p.SWIFT})
 		checkTextKey("parties."+a+".name", p.Name, 512)
 		checkTextKey("parties."+a+".address", p.Address, 512)
+		if p.BankAccount == "" {
+			for _, k := range []struct{ key, v string }{{"bank_name", p.BankName}, {"swift", p.SWIFT}} {
+				if k.v != "" {
+					add("parties."+a+"."+k.key, errors.New("set bank_account in this table too: bank_name and swift describe that account"))
+				}
+			}
+		}
+		if p.Items != nil {
+			checkPartyItems("parties."+a+".items", p.Items, cfg.Items, add)
+		}
+	}
+	keys := make([]string, 0, len(cfg.Items))
+	for k := range cfg.Items {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		checkItem("items."+k, k, cfg.Items[k], add)
 	}
 	return out
+}
+
+// ItemKeys returns the keys of items in sorted order.
+func ItemKeys(items map[string]config.Item) []string {
+	keys := make([]string, 0, len(items))
+	for k := range items {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// UnknownItem formats the error for an item key that is not defined in [items].
+func UnknownItem(key string, items map[string]config.Item) error {
+	defined := "none (add an [items.<key>] table)"
+	if len(items) > 0 {
+		defined = strings.Join(ItemKeys(items), ", ")
+	}
+	return fmt.Errorf("unknown item %q; defined: %s", key, defined)
+}
+
+func checkPartyItems(key string, list []string, items map[string]config.Item, add func(string, error)) {
+	if len(list) == 0 {
+		add(key, errors.New("empty list; remove the key or name at least one item"))
+		return
+	}
+	for _, k := range list {
+		if _, ok := items[k]; !ok {
+			add(key, UnknownItem(k, items))
+		}
+	}
+}
+
+func checkItem(prefix, k string, it config.Item, add func(string, error)) {
+	if err := ItemKey(k); err != nil {
+		add(prefix, err)
+	}
+	if it.Name == "" {
+		add(prefix+".name", errors.New("required"))
+	} else {
+		if err := LineTemplate(it.Name); err != nil {
+			add(prefix+".name", err)
+		} else {
+			add(prefix+".name", Token(it.Name, 512))
+		}
+	}
+	if it.UnitPrice == "" {
+		add(prefix+".unit_price", errors.New(`required; quote it, e.g. unit_price = "120,00"`))
+	} else if _, err := money.ParseAmount(it.UnitPrice); err != nil {
+		add(prefix+".unit_price", fmt.Errorf(`%w; quote it, e.g. unit_price = "120,00"`, err))
+	}
+	if it.Quantity != "" {
+		if _, err := money.ParseQuantity(it.Quantity); err != nil {
+			add(prefix+".quantity", fmt.Errorf(`%w; quote it, e.g. quantity = "160"`, err))
+		}
+	}
+	if it.VatRate != "" {
+		add(prefix+".vat_rate", RateCode(it.VatRate))
+	}
+	if it.Currency != "" {
+		add(prefix+".currency", Currency(it.Currency))
+	}
+	for _, f := range []struct {
+		key, v string
+		max    int
+	}{{"unit", it.Unit, 256}, {"index", it.Index, 50}, {"pkwiu", it.PKWiU, 50}} {
+		if f.v != "" {
+			add(prefix+"."+f.key, Token(f.v, f.max))
+		}
+	}
+	if it.GTIN != "" {
+		add(prefix+".gtin", GTIN(it.GTIN))
+	}
 }

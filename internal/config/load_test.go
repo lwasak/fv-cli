@@ -103,3 +103,42 @@ func TestLoad_StripsUTF8BOM(t *testing.T) {
 		t.Errorf("nip = %q", cfg.Seller.NIP)
 	}
 }
+
+func TestLoad_ItemsAndBank(t *testing.T) {
+	p := writeCfg(t, `
+[defaults]
+bank_account = "PL61109010140000071219812874"
+bank_name = "mBank S.A."
+swift = "BREXPLPW"
+[items.dev]
+name = "Programming {month_name} {year}"
+unit_price = "120,00"
+quantity = "160"
+gtin = "5901234123457"
+[parties.acme]
+nip = "5260250274"
+items = ["dev"]
+`)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Defaults.BankName != "mBank S.A." || cfg.Defaults.SWIFT != "BREXPLPW" {
+		t.Errorf("bank = %+v", cfg.Defaults)
+	}
+	it := cfg.Items["dev"]
+	if it.UnitPrice != "120,00" || it.Quantity != "160" || it.GTIN != "5901234123457" {
+		t.Errorf("item = %+v", it)
+	}
+	if got := cfg.Parties["acme"].Items; len(got) != 1 || got[0] != "dev" {
+		t.Errorf("party items = %v", got)
+	}
+}
+
+func TestLoad_UnquotedItemPriceIsAnError(t *testing.T) {
+	p := writeCfg(t, "[items.dev]\nname = \"x\"\nunit_price = 120.5\n")
+	_, err := Load(p)
+	if err == nil || !strings.Contains(err.Error(), "unit_price") {
+		t.Fatalf("err = %v, want it to name unit_price", err)
+	}
+}

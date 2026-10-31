@@ -9,6 +9,7 @@ type Config struct {
 	Numbering Numbering        `toml:"numbering"`
 	Registry  Registry         `toml:"registry"`
 	Parties   map[string]Party `toml:"parties"`
+	Items     map[string]Item  `toml:"items"`
 }
 
 // Ksef holds the [ksef] table.
@@ -35,6 +36,8 @@ type Defaults struct {
 	LineTemplate   string `toml:"line_template"`
 	Unit           string `toml:"unit"`
 	ExemptionBasis string `toml:"exemption_basis"`
+	BankName       string `toml:"bank_name"`
+	SWIFT          string `toml:"swift"`
 }
 
 // Numbering holds the [numbering] table.
@@ -50,16 +53,33 @@ type Registry struct {
 
 // Party holds one [parties.<alias>] table.
 type Party struct {
-	NIP            string `toml:"nip"`
-	VatID          string `toml:"vat_id"`
-	Name           string `toml:"name"`
-	Address        string `toml:"address"`
-	VatRate        string `toml:"vat_rate"`
-	PaymentDays    *int   `toml:"payment_days"`
-	BankAccount    string `toml:"bank_account"`
-	Currency       string `toml:"currency"`
-	SaleDate       string `toml:"sale_date"`
-	LineTemplate   string `toml:"line_template"`
-	Unit           string `toml:"unit"`
-	ExemptionBasis string `toml:"exemption_basis"`
+	NIP            string   `toml:"nip"`
+	VatID          string   `toml:"vat_id"`
+	Name           string   `toml:"name"`
+	Address        string   `toml:"address"`
+	VatRate        string   `toml:"vat_rate"`
+	PaymentDays    *int     `toml:"payment_days"`
+	BankAccount    string   `toml:"bank_account"`
+	Currency       string   `toml:"currency"`
+	SaleDate       string   `toml:"sale_date"`
+	LineTemplate   string   `toml:"line_template"`
+	Unit           string   `toml:"unit"`
+	ExemptionBasis string   `toml:"exemption_basis"`
+	BankName       string   `toml:"bank_name"`
+	SWIFT          string   `toml:"swift"`
+	Items          []string `toml:"items"`
+}
+
+// Item holds one [items.<key>] table: a saved invoice line. Prices and quantities are
+// strings on purpose: a TOML float is not money.
+type Item struct {
+	Name      string `toml:"name"`
+	Unit      string `toml:"unit"`
+	UnitPrice string `toml:"unit_price"`
+	Quantity  string `toml:"quantity"`
+	VatRate   string `toml:"vat_rate"`
+	Currency  string `toml:"currency"`
+	Index     string `toml:"index"`
+	PKWiU     string `toml:"pkwiu"`
+	GTIN      string `toml:"gtin"`
 }

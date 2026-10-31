@@ -7,7 +7,7 @@ import (
 
 // Entry documents one config.toml key.
 type Entry struct {
-	Key         string // key path; <alias> stands for a party alias
+	Key         string // key path; <alias> stands for a party alias, <key> for an item key
 	Type        string
 	Default     string
 	Allowed     string // allowed values, empty when any value of the type is accepted
@@ -88,6 +88,16 @@ var Reference = []Entry{
 		Description: "Statutory basis of a VAT exemption (zw), written to P_19A.",
 	},
 	{
+		Key: "defaults.bank_name", Type: "string", Default: "none (NazwaBanku omitted)",
+		Allowed: "1-256 characters", Example: `bank_name = "mBank S.A."`,
+		Description: "Name of the bank that holds the seller's account, written next to the account.",
+	},
+	{
+		Key: "defaults.swift", Type: "string", Default: "none (SWIFT omitted)",
+		Allowed: "8 or 11 characters BIC: 6 letters, 2 letters/digits, optional 3 letters/digits; spaces and lower case are normalised", Example: `swift = "BREXPLPW"`,
+		Description: "SWIFT/BIC code of the seller's bank, written next to the account.",
+	},
+	{
 		Key: "numbering.pattern", Type: "string", Default: "FV/{YYYY}/{MM}/{SEQ:3} (when unset)",
 		Allowed:     "{YYYY} {YY} {MM} {DD} {SEQ} {SEQ:n} (n 1-9), exactly one SEQ; literals A-Z a-z 0-9 / - _ .",
 		Example:     `pattern = "FV/{YYYY}/{MM}/{SEQ:4}"`,
@@ -162,6 +172,66 @@ var Reference = []Entry{
 		Key: "parties.<alias>.exemption_basis", Type: "string", Default: "none (falls back to defaults.exemption_basis)",
 		Allowed: "same as defaults.exemption_basis", Example: `exemption_basis = "art. 43 ust. 1 pkt 37 ustawy o VAT"`,
 		Description: "Per-party VAT exemption basis override.",
+	},
+	{
+		Key: "parties.<alias>.bank_name", Type: "string", Default: "none (taken with the account from the same table)",
+		Allowed: "same as defaults.bank_name; needs bank_account in the same table", Example: `bank_name = "ING Bank Śląski"`,
+		Description: "Bank name of the party's own bank_account.",
+	},
+	{
+		Key: "parties.<alias>.swift", Type: "string", Default: "none (taken with the account from the same table)",
+		Allowed: "same as defaults.swift; needs bank_account in the same table", Example: `swift = "INGBPLPW"`,
+		Description: "SWIFT/BIC of the party's own bank_account.",
+	},
+	{
+		Key: "parties.<alias>.items", Type: "array of strings", Default: "none (lines come from flags)",
+		Allowed: "keys of [items.<key>], at least one", Example: `items = ["dev", "support"]`,
+		Description: "Saved items billed to this party when no --net, --qty, --item or --line is given.",
+	},
+	{
+		Key: "items.<key>.name", Type: "string", Default: "none (required)",
+		Allowed: "text with the tokens {month_name} {month_name_en} {year}, 1-512 characters", Example: `name = "Programming services {month_name} {year}"`,
+		Description: "Line description of the saved item.",
+	},
+	{
+		Key: "items.<key>.unit", Type: "string", Default: "none (falls back to the party's or defaults' unit)",
+		Allowed: "1-256 characters", Example: `unit = "h"`,
+		Description: "Unit of measure of the saved item.",
+	},
+	{
+		Key: "items.<key>.unit_price", Type: "string", Default: "none (required)",
+		Allowed: `amount in zloty, e.g. "120,00" or "120.00" (quoted)`, Example: `unit_price = "120,00"`,
+		Description: "Net unit price, in the invoice currency; quote it, a TOML number is rejected.",
+	},
+	{
+		Key: "items.<key>.quantity", Type: "string", Default: "1",
+		Allowed: "positive, up to 6 decimals (quoted)", Example: `quantity = "160"`,
+		Description: "Default quantity; a quantity given on the command line with --item overrides it.",
+	},
+	{
+		Key: "items.<key>.vat_rate", Type: "string", Default: "none (--rate, then party, then defaults)",
+		Allowed: "same as defaults.vat_rate", Example: `vat_rate = "23"`,
+		Description: "VAT rate of the saved item; it beats the invoice-wide --rate.",
+	},
+	{
+		Key: "items.<key>.currency", Type: "string", Default: "none (the price is in the invoice currency)",
+		Allowed: "same as defaults.currency", Example: `currency = "EUR"`,
+		Description: "Currency the price is stated in; issuing in another currency is an error, never a conversion.",
+	},
+	{
+		Key: "items.<key>.index", Type: "string", Default: "none (Indeks omitted)",
+		Allowed: "1-50 characters", Example: `index = "DEV-01"`,
+		Description: "Internal item index (Indeks) written on the line.",
+	},
+	{
+		Key: "items.<key>.pkwiu", Type: "string", Default: "none (PKWiU omitted)",
+		Allowed: "1-50 characters", Example: `pkwiu = "62.01.11.0"`,
+		Description: "PKWiU classification written on the line.",
+	},
+	{
+		Key: "items.<key>.gtin", Type: "string", Default: "none (GTIN omitted)",
+		Allowed: "8, 12, 13 or 14 digits with a valid GS1 check digit", Example: `gtin = "5901234123457"`,
+		Description: "GTIN (barcode) written on the line.",
 	},
 }
 
