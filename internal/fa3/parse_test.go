@@ -142,7 +142,7 @@ func TestParse_ForeignIssuerWithPrefixAndGrossLines(t *testing.T) {
 	for _, tt := range d.Totals {
 		labels = append(labels, tt.Label)
 	}
-	if strings.Join(labels, "|") != "23% / 22%|8% / 7%|0% KR|np I|oo" {
+	if strings.Join(labels, "|") != "23%|8%|0% KR|np I|oo" {
 		t.Errorf("totals %v", labels)
 	}
 	if d.Totals[0].Net != 10000 || d.Totals[0].VAT != 2300 || d.Totals[2].HasVAT || d.Totals[2].Net != 5000 {
@@ -285,5 +285,48 @@ func TestParse_SamplesValidateAgainstTheSchema(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestParse_RateLabelsShowTheRatesTheLinesUse(t *testing.T) {
+	line := func(rate string) string {
+		return `<FaWiersz><NrWierszaFa>1</NrWierszaFa><P_11>10.00</P_11><P_12>` + rate + `</P_12></FaWiersz>`
+	}
+	doc := func(fa string) *Document {
+		d, err := Parse([]byte(`<Faktura xmlns="` + Namespace + `"><Fa><P_2>X/1</P_2>` + fa + `</Fa></Faktura>`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	for name, c := range map[string]struct{ fa, want string }{
+		"23":      {`<P_13_1>10.00</P_13_1><P_14_1>2.30</P_14_1>` + line("23"), "23%"},
+		"22":      {`<P_13_1>10.00</P_13_1><P_14_1>2.20</P_14_1>` + line("22"), "22%"},
+		"both":    {`<P_13_1>20.00</P_13_1>` + line("23") + line("22"), "23% / 22%"},
+		"8":       {`<P_13_2>10.00</P_13_2>` + line("8"), "8%"},
+		"5":       {`<P_13_3>10.00</P_13_3>` + line("5"), "5%"},
+		"3":       {`<P_13_4>10.00</P_13_4>` + line("3"), "3%"},
+		"nolines": {`<P_13_1>10.00</P_13_1>`, "23% / 22%"},
+		"zw":      {`<P_13_7>10.00</P_13_7>` + line("zw"), "zw"},
+	} {
+		d := doc(c.fa)
+		if len(d.Totals) != 1 || d.Totals[0].Label != c.want {
+			t.Errorf("%s: totals %+v, want label %q", name, d.Totals, c.want)
+		}
+	}
+}
+
+func TestParse_FactorAccountIsMarked(t *testing.T) {
+	b := []byte(`<Faktura xmlns="` + Namespace + `"><Fa><P_2>X/1</P_2><Platnosc>` +
+		`<RachunekBankowy><NrRB>61109010140000071219812874</NrRB></RachunekBankowy>` +
+		`<RachunekBankowyFaktora><NrRB>27114020040000300201355387</NrRB><NazwaBanku>Bank Faktora</NazwaBanku></RachunekBankowyFaktora>` +
+		`</Platnosc></Fa></Faktura>`)
+	d, err := Parse(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := d.Payment.Accounts
+	if len(a) != 2 || a[0].Factor || !a[1].Factor || a[1].Number != "27114020040000300201355387" || a[1].Bank != "Bank Faktora" {
+		t.Errorf("accounts %+v", a)
 	}
 }

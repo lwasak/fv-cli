@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -70,11 +70,8 @@ func faSupported(e ksefcache.Entry) (bool, string) {
 func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *ksefcache.Cache, ksefNo string) ([]byte, error) {
 	l, closeLog := s.logger(rc.Paths)
 	defer closeLog()
-	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(commandContext(cmd), os.Interrupt)
 	defer stop()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	client, sess, err := s.ksefLogin(ctx, rc, l)
 	if err != nil {
 		return nil, err
@@ -308,7 +305,7 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 	renderDocParty(w, "Buyer:", d.Buyer)
 	for _, x := range d.Others {
 		p("\n")
-		renderDocParty(w, strings.ToUpper(x.Role[:1])+x.Role[1:]+":", x)
+		renderDocParty(w, roleLabel(x.Role), x)
 	}
 	p("\n")
 
@@ -359,11 +356,15 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 		}
 		_, _ = fmt.Fprintln(tw, header)
 		for _, t := range d.Totals {
-			vat, gr := "-", money.FormatPL(t.Net)
+			net, vat, gr := money.FormatPL(t.Net), "-", money.FormatPL(t.Net)
 			if t.HasVAT {
 				vat, gr = money.FormatPL(t.VAT), money.FormatPL(t.Net+t.VAT)
 			}
-			row := fmt.Sprintf("%s\t%s\t%s\t%s\t", t.Label, money.FormatPL(t.Net), vat, gr)
+			if t.Key == "11" {
+				// the margin procedure (P_13_11) states the gross sale value, not a net amount
+				net, vat = "-", "-"
+			}
+			row := fmt.Sprintf("%s\t%s\t%s\t%s\t", clean(t.Label), net, vat, gr)
 			if inPLN {
 				pln := "-"
 				if t.HasVATPLN {
@@ -402,6 +403,9 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 	for _, a := range pay.Accounts {
 		line := "Account:   " + groupIBAN(accountWithCountry(clean(a.Number)))
 		var extra []string
+		if a.Factor {
+			extra = append(extra, "FACTOR account: pay here, not to the supplier")
+		}
 		if a.Bank != "" {
 			extra = append(extra, clean(a.Bank))
 		}
@@ -437,6 +441,17 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 	for _, msg := range d.Warnings {
 		p("warning: %s\n", clean(msg))
 	}
+}
+
+// roleLabel is the label of a Podmiot3 block: the cleaned role with its first letter, whole
+// rune, in capitals.
+func roleLabel(role string) string {
+	role = clean(role)
+	if role == "" {
+		return "Other:"
+	}
+	r, n := utf8.DecodeRuneInString(role)
+	return string(unicode.ToUpper(r)) + role[n:] + ":"
 }
 
 // accountWithCountry puts PL in front of a bare 26-digit Polish account number (FA(3) writes

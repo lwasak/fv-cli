@@ -182,8 +182,8 @@ Buyer:     MOJA FIRMA JANUSZ NOWAK
   No        Description  Qty  Unit    Price    Value  Rate
    1  Materiały biurowe    1  szt.  1200,00  1200,00   23%
 
-       Rate      Net     VAT    Gross
-  23% / 22%  1200,00  276,00  1476,00
+  Rate      Net     VAT    Gross
+   23%  1200,00  276,00  1476,00
 Total:     1476,00 PLN
 
 Payment:   transfer

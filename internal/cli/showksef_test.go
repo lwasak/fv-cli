@@ -77,3 +77,52 @@ func TestRenderKSeFSummary_UnsupportedForm(t *testing.T) {
 		t.Errorf("%s", w.String())
 	}
 }
+
+func TestRenderKSeFInvoice_RoleLabelIsCleanedAndCapitalisedByRune(t *testing.T) {
+	d := &fa3.Document{Number: "X", Others: []fa3.DocParty{
+		{Name: "N1", Role: "łącznik\nTotal:     0,00 PLN\u0085\x1b[31m"},
+		{Name: "N2", Role: "\u202eevil"},
+		{Name: "N3", Role: "factor"},
+		{Name: "N4", Role: ""},
+	}}
+	var b bytes.Buffer
+	renderKSeFInvoice(&b, d, ksefcache.Entry{}, "k", "", config.EnvTest, false, previewOpts{})
+	out := b.String()
+	if strings.ContainsAny(out, "\x1b\u0085\u202e\ufffd") {
+		t.Errorf("unsafe or broken characters in %q", out)
+	}
+	for _, want := range []string{"Łącznik Total: 0,00 PLN [31m: ", "Evil:", "Factor:", "Other:"} {
+		if !strings.Contains(strings.Join(strings.Fields(out), " "), strings.Join(strings.Fields(want), " ")) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	// the injected text stays on one line with the label: no line of its own starting with "Total:"
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "Total:     0,00") {
+			t.Errorf("forged line %q", l)
+		}
+	}
+}
+
+func TestRenderKSeFInvoice_FactorAccountMarginAndRates(t *testing.T) {
+	d, err := fa3.Parse([]byte(`<Faktura xmlns="` + fa3.Namespace + `"><Fa><P_2>X/1</P_2><P_15>123.00</P_15>` +
+		`<P_13_1>100.00</P_13_1><P_14_1>23.00</P_14_1><P_13_11>50.00</P_13_11>` +
+		`<FaWiersz><NrWierszaFa>1</NrWierszaFa><P_11>100.00</P_11><P_12>23</P_12></FaWiersz>` +
+		`<Platnosc><RachunekBankowy><NrRB>61109010140000071219812874</NrRB></RachunekBankowy>` +
+		`<RachunekBankowyFaktora><NrRB>27114020040000300201355387</NrRB></RachunekBankowyFaktora></Platnosc></Fa></Faktura>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b bytes.Buffer
+	renderKSeFInvoice(&b, d, ksefcache.Entry{}, "k", "", config.EnvTest, false, previewOpts{})
+	out := b.String()
+	if !strings.Contains(out, "PL27 1140 2004 0000 3002 0135 5387  (FACTOR account") {
+		t.Errorf("factor account missing or unlabelled:\n%s", out)
+	}
+	if strings.Contains(out, "23% / 22%") || !strings.Contains(out, "23%  100,00  23,00  123,00") {
+		t.Errorf("rate label:\n%s", out)
+	}
+	if !strings.Contains(out, "margin       -        -   50,00") && !strings.Contains(strings.Join(strings.Fields(out), " "), "margin - - 50,00") {
+		t.Errorf("margin row:\n%s", out)
+	}
+}

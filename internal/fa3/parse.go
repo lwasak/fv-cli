@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/lwasak/fv-cli/internal/money"
@@ -144,8 +145,13 @@ type DocPayment struct {
 // DocDue is one TerminPlatnosci.
 type DocDue struct{ Date, Description string }
 
-// DocAccount is one RachunekBankowy.
-type DocAccount struct{ Number, Bank, SWIFT, Description string }
+// DocAccount is one RachunekBankowy or RachunekBankowyFaktora.
+type DocAccount struct {
+	Number, Bank, SWIFT, Description string
+	// Factor marks a RachunekBankowyFaktora: the account of the factor, to which the
+	// payment must go when the receivable was assigned.
+	Factor bool
+}
 
 // DocFlags are the annotations (Adnotacje) that change how the invoice is read.
 type DocFlags struct {
@@ -306,6 +312,12 @@ type xmlFa struct {
 			Bank  string `xml:"NazwaBanku"`
 			Opis  string `xml:"OpisRachunku"`
 		} `xml:"RachunekBankowy"`
+		RachunkiFaktora []struct {
+			Nr    string `xml:"NrRB"`
+			Swift string `xml:"SWIFT"`
+			Bank  string `xml:"NazwaBanku"`
+			Opis  string `xml:"OpisRachunku"`
+		} `xml:"RachunekBankowyFaktora"`
 	} `xml:"Platnosc"`
 	Zamowienie struct {
 		Wiersze []struct{} `xml:"ZamowienieWiersz"`
@@ -406,6 +418,7 @@ func Parse(b []byte) (*Document, error) {
 		d.Lines = append(d.Lines, l)
 	}
 	d.OrderLines = len(f.Zamowienie.Wiersze)
+	labelTotals(d)
 
 	d.CorrectionReason, d.CorrectionType = strings.TrimSpace(f.Przycz), strings.TrimSpace(f.Typ)
 	for _, c := range f.Korygowana {
@@ -437,6 +450,10 @@ func Parse(b []byte) (*Document, error) {
 	for _, r := range p.Rachunki {
 		d.Payment.Accounts = append(d.Payment.Accounts, DocAccount{Number: strings.TrimSpace(r.Nr), Bank: strings.TrimSpace(r.Bank),
 			SWIFT: strings.TrimSpace(r.Swift), Description: strings.TrimSpace(r.Opis)})
+	}
+	for _, r := range p.RachunkiFaktora {
+		d.Payment.Accounts = append(d.Payment.Accounts, DocAccount{Number: strings.TrimSpace(r.Nr), Bank: strings.TrimSpace(r.Bank),
+			SWIFT: strings.TrimSpace(r.Swift), Description: strings.TrimSpace(r.Opis), Factor: true})
 	}
 
 	a := &f.Adn
@@ -512,4 +529,41 @@ func totals(f *xmlFa, amount amountFn) []DocTotal {
 		out = append(out, DocTotal{Key: r.key, Label: r.label, Net: net, VAT: vat, VATPLN: vatw, HasVAT: okVat, HasVATPLN: okW})
 	}
 	return out
+}
+
+// bucketRates lists the P_12 values that fall into the summary groups P_13_1 .. P_13_4.
+var bucketRates = map[string][]string{"1": {"23", "22"}, "2": {"8", "7"}, "3": {"5"}, "4": {"4", "3"}}
+
+// labelTotals replaces the name of a rate bucket ("23% / 22%") with the rate or rates the
+// lines of the invoice actually use ("23%"). A bucket no line points to keeps its name.
+func labelTotals(d *Document) {
+	used := map[string]bool{}
+	var oss []string
+	for _, l := range d.Lines {
+		if l.Before {
+			continue
+		}
+		used[l.Rate] = true
+		if strings.HasSuffix(l.Rate, "%") && !slices.Contains(oss, l.Rate) {
+			oss = append(oss, l.Rate)
+		}
+	}
+	for i, t := range d.Totals {
+		var rates []string
+		switch t.Key {
+		case "1", "2", "3", "4":
+			for _, r := range bucketRates[t.Key] {
+				if used[r] {
+					rates = append(rates, r+"%")
+				}
+			}
+		case "5":
+			if len(oss) > 0 {
+				rates = []string{"OSS " + strings.Join(oss, " / ")}
+			}
+		}
+		if len(rates) > 0 {
+			d.Totals[i].Label = strings.Join(rates, " / ")
+		}
+	}
 }

@@ -28,6 +28,9 @@ import (
 // nameWidth is the longest party name in the default table; --wide shows full names.
 const nameWidth = 22
 
+// numberWidth is the longest invoice number in the default table; --wide shows all of it.
+const numberWidth = 24
+
 type listOpts struct {
 	from, to, month, as string
 	offline, wide       bool
@@ -162,11 +165,8 @@ func (s *session) syncKSeF(cmd *cobra.Command, rc *runContext, cache *ksefcache.
 	errw := s.deps.Stderr
 	l, closeLog := s.logger(rc.Paths)
 	defer closeLog()
-	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(commandContext(cmd), os.Interrupt)
 	defer stop()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	client, sess, err := s.ksefLogin(ctx, rc, l)
 	if err != nil {
 		if errors.Is(err, credentials.ErrNoCredential) {
@@ -282,11 +282,23 @@ func (s *session) printRowNotes(rows []listing.Row) {
 	}
 }
 
+// commandContext is the context of the command, or Background when there is none.
+func commandContext(cmd *cobra.Command) context.Context {
+	if ctx := cmd.Context(); ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
 // clean makes text from KSeF safe for a terminal: control characters (escape sequences, line
-// breaks) become spaces, and runs of spaces collapse into one.
+// breaks) become spaces, bidirectional controls (which could reorder the rest of a line,
+// such as the amounts) are dropped, and runs of spaces collapse into one.
 func clean(s string) string {
 	return strings.Join(strings.Fields(strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || r == 0x2028 || r == 0x2029 {
+		switch {
+		case unicode.Is(unicode.Bidi_Control, r):
+			return -1
+		case unicode.IsControl(r) || r == 0x2028 || r == 0x2029:
 			return ' '
 		}
 		return r
@@ -346,7 +358,11 @@ func (s *session) printRows(cmd *cobra.Command, rows []listing.Row, wide, showEn
 	}
 	fmt.Fprintln(tw, strings.Join(head, "\t"))
 	for i, r := range rows {
-		cells := []string{r.Issued, orDash(clean(r.Number)), r.Dir}
+		number := orDash(clean(r.Number))
+		if !wide {
+			number = cut(number, numberWidth)
+		}
+		cells := []string{r.Issued, number, r.Dir}
 		if showEnv {
 			cells = append(cells, string(r.Local.Env))
 		}

@@ -366,6 +366,37 @@ func TestList_StripsControlCharactersFromKSeFText(t *testing.T) {
 	}
 }
 
+func TestList_StripsBidiControlsFromKSeFText(t *testing.T) {
+	fx := newListFx(t)
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: "BIDI/1", IssueDate: "2026-10-21", SellerNIP: supplierNIP, SellerName: "ACME\u202eSp.\u2066x\u200f\u061c",
+		BuyerType: "Nip", BuyerID: ksefNIP, Gross: "1476.00"}, nil)
+	_, out, errs := fx.run("list", "--wide")
+	if strings.ContainsAny(out+errs, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u200e\u200f\u061c") {
+		t.Errorf("bidi controls reached the terminal: %q", out)
+	}
+	if !strings.Contains(out, "ACMESp.x") {
+		t.Errorf("out = %q", out)
+	}
+	if got := clean("ACME\u202eSp.\u2066x\u200f"); got != "ACMESp.x" {
+		t.Errorf("clean = %q", got)
+	}
+}
+
+func TestList_LongInvoiceNumbersAreCutInTheDefaultTable(t *testing.T) {
+	fx := newListFx(t)
+	long := "FA/KUDYO1a7dddfe-610e-4843-84ba-6b887e35266e"
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: long, IssueDate: "2026-10-21", SellerNIP: supplierNIP, SellerName: "X",
+		BuyerType: "Nip", BuyerID: ksefNIP, Gross: "1.00"}, nil)
+	_, out, _ := fx.run("list")
+	if strings.Contains(out, long) || !strings.Contains(out, "FA/KUDYO1a7dddfe-610e-4…") {
+		t.Errorf("default table:\n%s", out)
+	}
+	_, out, _ = fx.run("list", "--wide")
+	if !strings.Contains(out, long) {
+		t.Errorf("--wide must show the whole number:\n%s", out)
+	}
+}
+
 func TestList_UnknownSendIsOneRowWithAHintAndNoArchiveChange(t *testing.T) {
 	fx := newListFx(t)
 	fx.on.Script(ksefake.DropAfterReceive())

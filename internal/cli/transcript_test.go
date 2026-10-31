@@ -39,7 +39,7 @@ var guideSteps = []transcriptStep{
 	{name: "send", args: []string{"send", "FV/2026/10/001"}, answers: []string{"y"}},
 	{name: "status", args: []string{"status", "FV/2026/10/001"}},
 	{name: "list", args: []string{"list"}},
-	{name: "show-purchase", args: []string{"show", "5252248481-20261012-0200002AF62B-80"}},
+	{name: "show-purchase", args: []string{"show", "5252248481-20261012-0200002AF62A-20"}},
 	{name: "issue-eur", args: []string{"issue", "--to", "acme", "--net", "2000", "--currency", "EUR"}},
 }
 
