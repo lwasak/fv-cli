@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Faktura xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <Naglowek>
+    <KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</KodFormularza>
+    <WariantFormularza>3</WariantFormularza>
+    <DataWytworzeniaFa>2026-09-15T09:00:00Z</DataWytworzeniaFa>
+  </Naglowek>
+  <Podmiot1>
+    <DaneIdentyfikacyjne>
+      <NIP>5252248481</NIP>
+      <Nazwa>Jan Kowalski Usługi IT</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Długa 1/2</AdresL1>
+      <AdresL2>80-001 Gdańsk</AdresL2>
+    </Adres>
+  </Podmiot1>
+  <Podmiot2>
+    <DaneIdentyfikacyjne>
+      <NIP>5260250995</NIP>
+      <Nazwa>Odbiorca Sp. z o.o.</Nazwa>
+    </DaneIdentyfikacyjne>
+    <Adres>
+      <KodKraju>PL</KodKraju>
+      <AdresL1>ul. Marszałkowska 10</AdresL1>
+      <AdresL2>00-001 Warszawa</AdresL2>
+    </Adres>
+    <JST>2</JST>
+    <GV>2</GV>
+  </Podmiot2>
+  <Fa>
+    <KodWaluty>PLN</KodWaluty>
+    <P_1>2026-09-15</P_1>
+    <P_2>ZAL/2026/09/001</P_2>
+    <P_6>2026-09-15</P_6>
+    <P_13_1>100.00</P_13_1>
+    <P_14_1>23.00</P_14_1>
+    <P_15>123.00</P_15>
+    <Adnotacje>
+      <P_16>2</P_16>
+      <P_17>2</P_17>
+      <P_18>2</P_18>
+      <P_18A>2</P_18A>
+      <Zwolnienie>
+        <P_19N>1</P_19N>
+      </Zwolnienie>
+      <NoweSrodkiTransportu>
+        <P_22N>1</P_22N>
+      </NoweSrodkiTransportu>
+      <P_23>2</P_23>
+      <PMarzy>
+        <P_PMarzyN>1</P_PMarzyN>
+      </PMarzy>
+    </Adnotacje>
+    <RodzajFaktury>ZAL</RodzajFaktury>
+    <Platnosc>
+      <Zaplacono>1</Zaplacono>
+      <DataZaplaty>2026-09-14</DataZaplaty>
+      <FormaPlatnosci>6</FormaPlatnosci>
+    </Platnosc>
+    <Zamowienie>
+      <WartoscZamowienia>615.00</WartoscZamowienia>
+      <ZamowienieWiersz>
+        <NrWierszaZam>1</NrWierszaZam>
+        <P_7Z>Wdrożenie systemu, etap 1</P_7Z>
+        <P_8AZ>usł.</P_8AZ>
+        <P_8BZ>1</P_8BZ>
+        <P_9AZ>250.00</P_9AZ>
+        <P_11NettoZ>250.00</P_11NettoZ>
+        <P_11VatZ>57.50</P_11VatZ>
+        <P_12Z>23</P_12Z>
+      </ZamowienieWiersz>
+      <ZamowienieWiersz>
+        <NrWierszaZam>2</NrWierszaZam>
+        <P_7Z>Wdrożenie systemu, etap 2</P_7Z>
+        <P_8AZ>usł.</P_8AZ>
+        <P_8BZ>1</P_8BZ>
+        <P_9AZ>250.00</P_9AZ>
+        <P_11NettoZ>250.00</P_11NettoZ>
+        <P_11VatZ>57.50</P_11VatZ>
+        <P_12Z>23</P_12Z>
+      </ZamowienieWiersz>
+    </Zamowienie>
+  </Fa>
+</Faktura>

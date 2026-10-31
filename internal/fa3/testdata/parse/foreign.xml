@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tns:Faktura xmlns:tns="http://crd.gov.pl/wzor/2025/06/25/13775/">
+  <tns:Naglowek>
+    <tns:KodFormularza kodSystemowy="FA (3)" wersjaSchemy="1-0E">FA</tns:KodFormularza>
+    <tns:WariantFormularza>3</tns:WariantFormularza>
+    <tns:DataWytworzeniaFa>2026-10-12T08:30:00Z</tns:DataWytworzeniaFa>
+    <tns:SystemInfo>Hurtownia ERP 4.2</tns:SystemInfo>
+  </tns:Naglowek>
+  <tns:Podmiot1>
+    <tns:PrefiksPodatnika>PL</tns:PrefiksPodatnika>
+    <tns:DaneIdentyfikacyjne>
+      <tns:NIP>5252248481</tns:NIP>
+      <tns:Nazwa>Przykładowa Hurtownia Spółka z ograniczoną odpowiedzialnością</tns:Nazwa>
+    </tns:DaneIdentyfikacyjne>
+    <tns:Adres>
+      <tns:KodKraju>PL</tns:KodKraju>
+      <tns:AdresL1>ul. Magazynowa 7</tns:AdresL1>
+      <tns:AdresL2>80-209 Chwaszczyno</tns:AdresL2>
+    </tns:Adres>
+    <tns:DaneKontaktowe>
+      <tns:Email>biuro@hurtownia.example</tns:Email>
+      <tns:Telefon>583001122</tns:Telefon>
+    </tns:DaneKontaktowe>
+  </tns:Podmiot1>
+  <tns:Podmiot2>
+    <tns:DaneIdentyfikacyjne>
+      <tns:NIP>5260250995</tns:NIP>
+      <tns:Nazwa>Odbiorca Sp. z o.o.</tns:Nazwa>
+    </tns:DaneIdentyfikacyjne>
+    <tns:Adres>
+      <tns:KodKraju>PL</tns:KodKraju>
+      <tns:AdresL1>ul. Marszałkowska 10</tns:AdresL1>
+      <tns:AdresL2>00-001 Warszawa</tns:AdresL2>
+    </tns:Adres>
+    <tns:JST>2</tns:JST>
+    <tns:GV>2</tns:GV>
+  </tns:Podmiot2>
+  <tns:Podmiot3>
+    <tns:DaneIdentyfikacyjne>
+      <tns:NIP>5272525995</tns:NIP>
+      <tns:Nazwa>Magazyn Docelowy Sp. z o.o.</tns:Nazwa>
+    </tns:DaneIdentyfikacyjne>
+    <tns:Adres>
+      <tns:KodKraju>PL</tns:KodKraju>
+      <tns:AdresL1>ul. Składowa 3</tns:AdresL1>
+      <tns:AdresL2>05-500 Piaseczno</tns:AdresL2>
+    </tns:Adres>
+    <tns:Rola>2</tns:Rola>
+  </tns:Podmiot3>
+  <tns:Fa>
+    <tns:KodWaluty>PLN</tns:KodWaluty>
+    <tns:P_1>2026-10-12</tns:P_1>
+    <tns:P_2>HB/10/2026/0457</tns:P_2>
+    <tns:P_6>2026-10-10</tns:P_6>
+    <tns:P_13_1>100.00</tns:P_13_1>
+    <tns:P_14_1>23.00</tns:P_14_1>
+    <tns:P_13_2>100.00</tns:P_13_2>
+    <tns:P_14_2>8.00</tns:P_14_2>
+    <tns:P_13_6_1>50.00</tns:P_13_6_1>
+    <tns:P_13_8>20.00</tns:P_13_8>
+    <tns:P_13_10>30.00</tns:P_13_10>
+    <tns:P_15>331.00</tns:P_15>
+    <tns:Adnotacje>
+      <tns:P_16>2</tns:P_16>
+      <tns:P_17>2</tns:P_17>
+      <tns:P_18>1</tns:P_18>
+      <tns:P_18A>1</tns:P_18A>
+      <tns:Zwolnienie>
+        <tns:P_19N>1</tns:P_19N>
+      </tns:Zwolnienie>
+      <tns:NoweSrodkiTransportu>
+        <tns:P_22N>1</tns:P_22N>
+      </tns:NoweSrodkiTransportu>
+      <tns:P_23>2</tns:P_23>
+      <tns:PMarzy>
+        <tns:P_PMarzyN>1</tns:P_PMarzyN>
+      </tns:PMarzy>
+    </tns:Adnotacje>
+    <tns:RodzajFaktury>VAT</tns:RodzajFaktury>
+    <tns:DodatkowyOpis>
+      <tns:Klucz>Zamówienie</tns:Klucz>
+      <tns:Wartosc>ZK/2026/0099</tns:Wartosc>
+    </tns:DodatkowyOpis>
+    <tns:DodatkowyOpis>
+      <tns:Klucz>Osoba kontaktowa</tns:Klucz>
+      <tns:Wartosc>Anna Nowak</tns:Wartosc>
+    </tns:DodatkowyOpis>
+    <tns:FaWiersz>
+      <tns:NrWierszaFa>1</tns:NrWierszaFa>
+      <tns:P_7>Śruba M8x40 ocynkowana, opakowanie zbiorcze</tns:P_7>
+      <tns:P_8A>op.</tns:P_8A>
+      <tns:P_8B>1</tns:P_8B>
+      <tns:P_9B>123.00</tns:P_9B>
+      <tns:P_11A>123.00</tns:P_11A>
+      <tns:P_11Vat>23.00</tns:P_11Vat>
+      <tns:P_12>23</tns:P_12>
+    </tns:FaWiersz>
+    <tns:FaWiersz>
+      <tns:NrWierszaFa>2</tns:NrWierszaFa>
+      <tns:P_7>Rękawice robocze</tns:P_7>
+      <tns:P_8A>para</tns:P_8A>
+      <tns:P_8B>2.5</tns:P_8B>
+      <tns:P_9B>43.20</tns:P_9B>
+      <tns:P_11A>108.00</tns:P_11A>
+      <tns:P_11Vat>8.00</tns:P_11Vat>
+      <tns:P_12>8</tns:P_12>
+    </tns:FaWiersz>
+    <tns:FaWiersz>
+      <tns:NrWierszaFa>3</tns:NrWierszaFa>
+      <tns:P_7>Dostawa towaru poza granice UE</tns:P_7>
+      <tns:P_8A>szt.</tns:P_8A>
+      <tns:P_8B>4</tns:P_8B>
+      <tns:P_9A>12.5</tns:P_9A>
+      <tns:P_11>50.00</tns:P_11>
+      <tns:P_12>0 KR</tns:P_12>
+    </tns:FaWiersz>
+    <tns:FaWiersz>
+      <tns:NrWierszaFa>4</tns:NrWierszaFa>
+      <tns:P_7>Usługa niepodlegająca opodatkowaniu</tns:P_7>
+      <tns:P_8A>usł.</tns:P_8A>
+      <tns:P_8B>1</tns:P_8B>
+      <tns:P_9A>20.00</tns:P_9A>
+      <tns:P_11>20.00</tns:P_11>
+      <tns:P_12>np I</tns:P_12>
+    </tns:FaWiersz>
+    <tns:FaWiersz>
+      <tns:NrWierszaFa>5</tns:NrWierszaFa>
+      <tns:P_7>Roboty budowlane, odwrotne obciążenie</tns:P_7>
+      <tns:P_8A>usł.</tns:P_8A>
+      <tns:P_8B>1</tns:P_8B>
+      <tns:P_9A>30.00</tns:P_9A>
+      <tns:P_11>30.00</tns:P_11>
+      <tns:P_12>oo</tns:P_12>
+    </tns:FaWiersz>
+    <tns:Platnosc>
+      <tns:TerminPlatnosci>
+        <tns:Termin>2026-10-26</tns:Termin>
+      </tns:TerminPlatnosci>
+      <tns:TerminPlatnosci>
+        <tns:TerminOpis>
+          <tns:Ilosc>30</tns:Ilosc>
+          <tns:Jednostka>dni</tns:Jednostka>
+          <tns:ZdarzeniePoczatkowe>dostawy</tns:ZdarzeniePoczatkowe>
+        </tns:TerminOpis>
+      </tns:TerminPlatnosci>
+      <tns:FormaPlatnosci>6</tns:FormaPlatnosci>
+      <tns:RachunekBankowy>
+        <tns:NrRB>61109010140000071219812874</tns:NrRB>
+        <tns:NazwaBanku>Bank Przykładowy S.A.</tns:NazwaBanku>
+      </tns:RachunekBankowy>
+      <tns:RachunekBankowy>
+        <tns:NrRB>DE89370400440532013000</tns:NrRB>
+        <tns:SWIFT>COBADEFFXXX</tns:SWIFT>
+      </tns:RachunekBankowy>
+    </tns:Platnosc>
+  </tns:Fa>
+</tns:Faktura>
