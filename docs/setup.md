@@ -74,39 +74,40 @@ It reports one `<key>: <message>` line per problem, checks the stored certificat
 
 ## 2. Get a KSeF certificate
 
-fv logs in to KSeF with a certificate (XAdES signature). It does not use KSeF tokens. A certificate is bound to an environment, so you need one for each of TEST, DEMO and PROD that you use, and a TEST certificate never works on PROD.
+fv logs in to KSeF with a certificate (XAdES signature). It does not use KSeF tokens. A certificate is bound to an environment, so you need one for each of DEMO, TEST and PROD that you use, and a TEST or DEMO certificate never works on PROD.
 
 What fv accepts:
 
 - a **KSeF Authentication certificate**, issued by KSeF itself. This is the normal choice and the one this guide describes;
-- a **qualified seal** certificate (it must carry your NIP) or a **qualified signature** certificate (NIP or PESEL).
+- a **qualified seal** certificate (it must carry your NIP) or a **qualified signature** certificate (NIP or PESEL);
+- a personal KSeF certificate, which carries your PESEL rather than a NIP (see [Certificates with only a PESEL](#certificates-with-only-a-pesel)).
 
 A KSeF **Offline** certificate (key usage "non-repudiation") cannot log in and is refused.
 
 ### Where to get it
 
-KSeF issues Authentication certificates from the taxpayer application of the Ministry of Finance for the environment, "Aplikacja Podatnika KSeF 2.0", in its certificates module ("Certyfikaty"). The application has a separate address for TEST, DEMO and PROD; start from the KSeF portal at https://ksef.podatki.gov.pl. The screens change, so follow the on-screen steps; what matters is the result:
+KSeF issues Authentication certificates from the taxpayer application of the Ministry of Finance, "Aplikacja Podatnika KSeF 2.0", in its certificates module ("Certyfikaty"). Each environment has its own application:
 
-1. Log in to the application for the environment with something KSeF accepts as proof of identity: a qualified signature or seal, or Profil Zaufany. (On PROD and DEMO that is how the very first certificate is obtained; later certificates can be requested with an earlier KSeF certificate.)
-2. Request a certificate of type **Authentication**. The request is made for the identity you logged in with, in your own name.
+| Environment | Application | Data |
+|---|---|---|
+| DEMO (start here) | https://ap-demo.ksef.mf.gov.pl | Real login identity, fictitious invoice data, no tax effect. The same rules as PROD. |
+| TEST | https://ap-test.ksef.mf.gov.pl | Fictitious data shared with other users. Use a made-up NIP, never real data. Self-signed certificates are also accepted by KSeF TEST. |
+| PROD | https://ap.ksef.mf.gov.pl | Legally binding. |
+
+The KSeF portal at https://ksef.podatki.gov.pl links to all of them. The screens change, so follow the on-screen steps; what matters is the result:
+
+1. Log in to the application for the environment with something KSeF accepts as proof of identity: Profil Zaufany, a qualified signature or seal, or an existing KSeF certificate. (The very first certificate needs Profil Zaufany or a qualified signature or seal; later ones can be requested with an earlier KSeF certificate.)
+2. Request a certificate of type **Authentication** (not Offline). The request is made for the identity you logged in with, in your own name.
 3. Choose a **password for the private key** when asked. Use a long one and store it in your password manager.
 4. Download the certificate and the private key. Depending on the application you get a `.p12` / `.pfx` file, or a certificate (`.crt`, `.pem`) plus an encrypted key (`.key`, `.pem`).
 
-For the environments:
-
-| Environment | Certificate | Data |
-|---|---|---|
-| TEST | KSeF test certificates; self-signed certificates are also accepted by KSeF TEST | Shared by all integrators. Use a made-up NIP, never real data. |
-| DEMO | Real KSeF certificates from the DEMO application | Pre-production: the same rules as PROD, but no legal effect. Do not send real invoices. |
-| PROD | Real KSeF certificates from the production application | Legally binding. |
-
-fv itself does not create or request certificates. For a TEST certificate that fv accepts without the application, MF documents test certificates and XAdES signatures in its KSeF docs ("Testowe certyfikaty i podpisy XAdES"); fv needs the subject to carry your NIP and the certificate to be a KSeF Authentication, qualified seal or qualified signature certificate.
+Certificates are per environment: a DEMO certificate does not work on TEST or PROD. fv itself does not create or request certificates. MF also documents test certificates and XAdES signatures in its KSeF docs ("Testowe certyfikaty i podpisy XAdES"); fv accepts such a certificate if it is a KSeF Authentication, qualified seal or qualified signature certificate and, when it carries a NIP, that NIP is yours.
 
 ### What fv requires of the key file
 
 - The private key **must be encrypted**. fv refuses a key that opens with an empty password, and refuses an empty passphrase.
 - A `.p12` / `.pfx` file, or a PEM certificate plus an encrypted PEM key (the key may be in the same file as the certificate).
-- The key must match the certificate, and a certificate with a NIP must carry **your** NIP: if it does not match `seller.nip`, fv stops with a message naming both numbers (exit code 3).
+- The key must match the certificate. A certificate that carries a NIP must carry **your** NIP: if it does not match `seller.nip`, fv stops with a message naming both numbers (exit code 3). A certificate with only a PESEL is accepted; see below.
 
 ## 3. Import the certificate
 

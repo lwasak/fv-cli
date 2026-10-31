@@ -23,50 +23,212 @@ Verified live against the **KSeF DEMO** environment on 2026-10-31: certificate (
 
 This project is **not affiliated with the Polish Ministry of Finance** (Ministerstwo Finansów) or the KSeF programme. It is **not tax or accounting advice**. Check every invoice before you send it, and use `fv` at your own risk.
 
-## Install
+## Getting started
 
-Download the archive for your platform from the [Releases page](https://github.com/lwasak/fv-cli/releases) (Windows `.zip`, Linux and macOS `.tar.gz`), verify it against `checksums.txt`, and put `fv` on your `PATH`. Or, with Go 1.26.10 or newer:
+This walks you from nothing to a first invoice accepted by KSeF, on the DEMO environment, which has no tax effect. Commands are shown for Windows (PowerShell), macOS and Linux where they differ. The names and numbers (NIP `5555555555`, "Jan Kowalski", the buyer `acme`) are made up.
+
+### 1. Install
+
+Download the archive for your platform from the [Releases page](https://github.com/lwasak/fv-cli/releases): `windows_amd64` (`.zip`), `darwin_arm64` (Apple silicon), `darwin_amd64` (Intel), `linux_amd64` or `linux_arm64` (`.tar.gz`), plus `checksums.txt`. Check the archive against `checksums.txt` before you run anything from it.
+
+Windows (PowerShell):
+
+```powershell
+Get-FileHash .\fv_*_windows_amd64.zip -Algorithm SHA256     # compare with the line in checksums.txt
+Expand-Archive .\fv_*_windows_amd64.zip -DestinationPath .\fv-unpacked
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Programs\fv" | Out-Null
+Copy-Item .\fv-unpacked\fv.exe "$env:LOCALAPPDATA\Programs\fv\fv.exe"
+$bin = "$env:LOCALAPPDATA\Programs\fv"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$bin", "User")
+Unblock-File "$bin\fv.exe"            # only if the archive came from a browser and Windows blocks it
+```
+
+Open a new terminal so the new `PATH` is picked up.
+
+macOS and Linux:
+
+```sh
+sha256sum --check --ignore-missing checksums.txt             # macOS: shasum -a 256 --check --ignore-missing checksums.txt
+tar -xzf fv_*_linux_amd64.tar.gz                             # use the darwin archive on a Mac
+mkdir -p ~/.local/bin && install -m 0755 fv ~/.local/bin/fv  # or: sudo install -m 0755 fv /usr/local/bin/fv
+xattr -d com.apple.quarantine ~/.local/bin/fv                # macOS only, if the archive came from a browser
+```
+
+Make sure `~/.local/bin` is on your `PATH`. The binaries are not code-signed, which is why macOS and Windows may block a browser download; a file fetched with `curl` is not affected.
+
+With Go 1.26.10 or newer you can build it yourself instead (`fv` lands in `$(go env GOPATH)/bin`):
 
 ```sh
 go install github.com/lwasak/fv-cli/cmd/fv@latest
 ```
 
-The binaries are not code-signed:
-
-- **macOS.** A file downloaded in a browser is quarantined and Gatekeeper refuses to run it. Fetch the archive with `curl -L -O <asset URL>`, or remove the attribute after checking the checksum: `xattr -d com.apple.quarantine fv`.
-- **Windows.** Running `fv` from a terminal does not trigger SmartScreen. If an archive downloaded in a browser is blocked, run `Unblock-File .\fv.exe` once.
-
-Details, checksums and per-OS notes: [docs/install.md](docs/install.md).
-
-## Quick start
+Check it:
 
 ```sh
-fv init                                   # config, and import of your KSeF certificate
-fv party add acme --nip 5252248481        # a buyer, looked up in the White List
-fv issue --to acme --net "18500,43"       # a local draft; nothing is sent
-fv show FV/2026/10/001                    # check it
-fv send FV/2026/10/001                    # to KSeF, after a confirmation
-fv status FV/2026/10/001                  # only when the answer was lost
+fv version
 ```
 
+More per-OS detail: [docs/install.md](docs/install.md).
+
+### 2. Get a KSeF certificate
+
+`fv` logs in to KSeF with a certificate, not a token. KSeF issues it in the taxpayer application, "Aplikacja Podatnika KSeF 2.0", in its certificates module. Each environment has its own application, and a certificate works only in the environment that issued it:
+
+| Environment | Application | Data |
+|---|---|---|
+| DEMO (start here) | https://ap-demo.ksef.mf.gov.pl | Your real login identity, fictitious invoice data, no tax effect. |
+| TEST | https://ap-test.ksef.mf.gov.pl | Fictitious data shared with other users. |
+| PROD | https://ap.ksef.mf.gov.pl | Legally binding. |
+
+1. Log in to the DEMO application with Profil Zaufany, a qualified signature or an existing KSeF certificate.
+2. Request a certificate of type **Authentication** (not Offline: an Offline certificate cannot log in).
+3. Choose a strong **password for the private key** and keep it in a password manager. `fv` refuses an unencrypted key.
+4. Download the certificate (`.crt` or `.pem`) and the encrypted private key (`.key`), or a single `.p12` file.
+
+A personal certificate carries your PESEL, not a NIP. That is fine: `fv` logs in with your seller NIP as the context, and KSeF checks that you are authorised to act for that NIP. A certificate that does carry a NIP must match your seller NIP. Details: [docs/setup.md](docs/setup.md).
+
+### 3. Configure with `fv init`
+
+```sh
+fv --env demo init
+```
+
+`fv init` asks for your seller NIP and environment, writes a minimal `config.toml`, and offers to import the certificate. Answer `y` and give the paths; the passphrase is typed without echo and stored in the OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service).
+
 ```text
-$ fv issue --to acme --net "18500,43"
+Seller NIP (10 digits): 5555555555
+KSeF environment (test/demo/prod) [test]: demo
+config written: C:\Users\you\AppData\Roaming\fv\config.toml
+Import a KSeF certificate for demo/5555555555? [y/N] y
+Certificate file (.p12/.pfx, or .pem/.crt): C:\keys\ksef-demo.crt
+Encrypted private key file (.pem/.key; empty if the certificate file holds it): C:\keys\ksef-demo.key
+Key passphrase:
+certificate imported for demo/5555555555
+```
+
+`fv` keeps its own encrypted copy, so delete the downloaded files afterwards. To skip the questions (for a script), pass the files and supply the passphrase in an environment variable, which is then not written to the keyring:
+
+```powershell
+$env:FV_SECRET_KSEF_DEMO_5555555555 = Read-Host "KSeF key passphrase"
+fv --env demo init --import-cert C:\keys\ksef-demo.crt --import-key C:\keys\ksef-demo.key
+```
+
+The variable is named `FV_SECRET_KSEF_<ENV>_<NIP>`. On macOS and Linux use `export FV_SECRET_KSEF_DEMO_5555555555=...` (or `read -rs`).
+
+`fv init` does not ask for everything an invoice needs. Open the config file and add your bank account and VAT rate:
+
+| OS | Config file | Data (archive, certificate) |
+|---|---|---|
+| Windows | `%AppData%\fv\config.toml` | `%LocalAppData%\fv` |
+| macOS | `~/Library/Application Support/fv/config.toml` | `~/Library/Application Support/fv` |
+| Linux | `~/.config/fv/config.toml` | `~/.local/share/fv` |
+
+```toml
+[ksef]
+environment = "demo"
+
+[seller]
+nip = "5555555555"
+place_of_issue = "Gdańsk"
+
+[defaults]
+vat_rate = "23"
+bank_account = "PL61 1090 1014 0000 0712 1981 2874"
+```
+
+Check the file with `fv config validate`. All keys: [docs/config-reference.md](docs/config-reference.md).
+
+### 4. Test the login
+
+```sh
+fv ksef check
+```
+
+This does a real login to KSeF and prints what it found:
+
+```text
+environment: demo
+subject: CN=JAN KOWALSKI (uwierzytelnienie),SN=KOWALSKI,GN=JAN,SERIALNUMBER=PNOPL-…,C=PL
+identifier: PESEL
+nip: 5555555555 (context; none in certificate)
+type: KSeF Authentication
+validity: …
+authenticated: OK
+```
+
+`authenticated: OK` means the certificate, the passphrase and your permissions for the NIP all work. Exit code 3 means they do not; see [docs/troubleshooting.md](docs/troubleshooting.md).
+
+### 5. Add a buyer
+
+```sh
+fv party add acme --nip 5252248481
+```
+
+`fv` looks the NIP up in the MF White List and adds `[parties.acme]` to your config. For a buyer the White List does not know, give the details yourself with `--name` and `--address`; for an EU buyer use `--vat-id DE123456789` (looked up in VIES). `fv party show acme` shows what was found. See [docs/parties.md](docs/parties.md).
+
+### 6. Issue a draft
+
+```sh
+fv issue --to acme --net "1,00"
+```
+
+This creates a local draft and reserves the next invoice number. Nothing is sent. Quote the amount: PowerShell and other shells can mangle an unquoted comma ([docs/amounts.md](docs/amounts.md)).
+
+```text
 ENVIRONMENT: DEMO
 
 Invoice:   FV/2026/10/001   [draft]
 ...
-Total:     22 755,53 PLN
+  No                 Description  Qty  Unit  Price   Net  Rate
+   1  Usługi za październik 2026    1  usł.   1,00  1,00   23%
 
+  Rate   Net   VAT  Gross
+   23%  1,00  0,23   1,23
+Total:     1,23 PLN
+...
 Nothing was sent to KSeF. To send: fv send FV/2026/10/001
+```
 
-$ fv send FV/2026/10/001
+Look at it with `fv show FV/2026/10/001`, or at the exact XML that would be sent with `fv show FV/2026/10/001 --xml`.
+
+### 7. Send it to DEMO
+
+```sh
+fv send FV/2026/10/001
+```
+
+`fv` shows the invoice again and asks, naming the environment:
+
+```text
 Send invoice FV/2026/10/001 to KSeF DEMO? [y/N] y
 Sent FV/2026/10/001 to KSeF DEMO.
-KSeF number: 5260250274-20261031-0100001AF62C-27
+KSeF number: 5555555555-20261031-0100001AF62C-27
 UPO:         stored (upo.xml)
 ```
 
-Quote amounts (`"18500,43"`): PowerShell and other shells can mangle an unquoted comma. See [docs/amounts.md](docs/amounts.md) and `fv help amounts`.
+The KSeF number is the invoice's permanent identifier and the UPO is KSeF's official confirmation of receipt; both are kept in the local archive. On TEST and DEMO, `--yes` skips the question (for scripts). If the answer was lost (exit code 5), `fv status FV/2026/10/001` asks KSeF and settles it. `fv list` shows all invoices and their states.
+
+### 8. Go to production
+
+1. Get a PROD certificate from https://ap.ksef.mf.gov.pl, the same way as in step 2.
+2. Import it: `fv --env prod init`. Answer `N` to the overwrite question and `y` to the import question.
+3. Test it:
+
+```sh
+fv --env prod ksef check
+```
+
+4. Issue and send with `--env prod`. A PROD send is legally binding and needs you to type `PRODUCTION`; `--yes` never skips that.
+5. When you are ready to work in production by default, set `environment = "prod"` under `[ksef]` in the config. Numbering, archive and credentials are separate per environment, so DEMO drafts never go to PROD.
+
+### 9. Where to go next
+
+- [docs/workflow.md](docs/workflow.md): issue, show, send and status in detail, sale and due dates, one-step `issue --send`.
+- [docs/config-reference.md](docs/config-reference.md): every config key, default and file location.
+- [docs/amounts.md](docs/amounts.md) and `fv help amounts`: amounts and shell quoting. Foreign currency invoices (NBP rate) are in [docs/workflow.md](docs/workflow.md#foreign-currency).
+- [docs/exit-codes.md](docs/exit-codes.md): exit codes for scripts.
+- [docs/troubleshooting.md](docs/troubleshooting.md): login, rejection and unknown-outcome problems.
+- [docs/security.md](docs/security.md): what `fv` protects and what you must protect.
 
 ## Security
 
