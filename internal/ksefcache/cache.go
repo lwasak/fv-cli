@@ -285,7 +285,7 @@ func (c *Cache) XML(ksefNumber string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(p)
+	b, err := os.ReadFile(p) // #nosec G304 -- p is xml/<n>.xml inside the cache dir, n checked by ValidateKSeFNumber in xmlPath
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNotCached
 	}

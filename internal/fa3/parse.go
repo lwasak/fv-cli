@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/lwasak/fv-cli/internal/money"
@@ -395,7 +396,9 @@ func Parse(b []byte) (*Document, error) {
 		l := DocLine{Description: strings.TrimSpace(w.P7), Unit: strings.TrimSpace(w.P8A), Qty: strings.TrimSpace(w.P8B),
 			Discount: strings.TrimSpace(w.P10), ExchangeRate: strings.TrimSpace(w.Kurs), SaleDate: strings.TrimSpace(w.P6A),
 			Before: strings.TrimSpace(w.Przed) == "1"}
-		fmt.Sscanf(strings.TrimSpace(w.Nr), "%d", &l.No)
+		if n, err := strconv.Atoi(strings.TrimSpace(w.Nr)); err == nil {
+			l.No = n
+		}
 		if l.No == 0 {
 			l.No = i + 1
 		}
