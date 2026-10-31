@@ -82,9 +82,11 @@ func kindOf(t string) string {
 //  5. a local invoice still sending or unknown, whose own sale in KSeF has the same invoice
 //     number, is one row that takes the KSeF number and the hint to run fv status (the
 //     archive is not changed);
-//  6. every other remote invoice is a row in state "ksef".
+//  6. every other remote invoice is a row in state "ksef";
+//  7. a local invoice that needs action (reserved, draft, sending or unknown) is a row even
+//     when its issue date is outside the range, with a hint saying so and what to do.
 //
-// Rows are limited to the range (by issue date) and to the side. Local invoices are always
+// Rows are limited to the range (by issue date) and to the side, except for rule 7. Local invoices are always
 // sales. The order is by issue date, sale before purchase, local before KSeF-only, then
 // archive sequence, number and KSeF number.
 func Merge(local []store.Meta, remote []ksef.InvoiceMeta, ownNIP string, as Side, r Range) []Row {
@@ -113,10 +115,14 @@ func Merge(local []store.Meta, remote []ksef.InvoiceMeta, ownNIP string, as Side
 
 	for i := range local {
 		m := &local[i]
-		if !r.Contains(m.IssueDate) {
+		outside := !r.Contains(m.IssueDate)
+		if outside && !needsAction(m.State) {
 			continue
 		}
 		row := localRow(m)
+		if outside {
+			row.Hint = outsideHint(m)
+		}
 		switch {
 		case m.KSeF != nil && m.KSeF.KSeFNumber != "":
 			if j, ok := byNumber[m.KSeF.KSeFNumber]; ok {
@@ -154,6 +160,36 @@ func Merge(local []store.Meta, remote []ksef.InvoiceMeta, ownNIP string, as Side
 	}
 	sort.SliceStable(out, func(i, j int) bool { return less(out[i], out[j]) })
 	return out
+}
+
+// needsAction is true for the states that are not final: the user has to send, check or
+// discard the invoice, so it must not drop out of the list with its date range.
+func needsAction(s store.State) bool {
+	switch s {
+	case store.StateReserved, store.StateDraft, store.StateSending, store.StateUnknown:
+		return true
+	}
+	return false
+}
+
+func outsideHint(m *store.Meta) string {
+	what := ""
+	switch m.State {
+	case store.StateSending, store.StateUnknown:
+		what = fmt.Sprintf("run `fv status %s`", m.Number)
+	case store.StateDraft:
+		what = fmt.Sprintf("send it with `fv send %s` or drop it with `fv discard %s`", m.Number, m.Number)
+	default:
+		what = fmt.Sprintf("drop it with `fv discard %s`", m.Number)
+	}
+	return fmt.Sprintf("%s (%s, issued %s) is outside the listed range but is not settled: %s", m.Number, m.State, orDashDate(m.IssueDate), what)
+}
+
+func orDashDate(d string) string {
+	if d == "" {
+		return "no date"
+	}
+	return d
 }
 
 func localRow(m *store.Meta) Row {

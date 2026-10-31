@@ -43,7 +43,8 @@ func newListCmd(s *session) *cobra.Command {
 		Short: "List your sales and purchase invoices from the archive and KSeF",
 		Long: "Lists invoices of the environment in use (--env, else ksef.environment), oldest first: the invoices " +
 			"in the local archive and the sales and purchases KSeF reports for your NIP. Without flags the range " +
-			"is the current month and the two before it, by issue date.\n\n" +
+			"is the current month and the two before it, by issue date. An archived invoice that is not settled " +
+			"(reserved, draft, sending or unknown) is listed even outside the range, with a note, because it needs action.\n\n" +
 			"Columns: ISSUED, NUMBER, DIR (sale or purchase), SELLER, BUYER, GROSS, CUR and STATE. STATE is the " +
 			"archive state (reserved, draft, sending, accepted, rejected, unknown, void-draft) or ksef for an " +
 			"invoice that only KSeF has: a purchase, or a sale made outside fv. --wide adds the full names, NIPs, " +
@@ -100,7 +101,7 @@ func (s *session) runList(cmd *cobra.Command, o listOpts) error {
 	_, _ = fmt.Fprintf(errw, "%s: issue dates %s to %s\n", strings.ToUpper(string(rc.Env)), r.From, r.To)
 
 	env := rc.Env
-	local, skipped, err := s.store(rc).ListWithWarnings(store.Filter{Env: &env, From: r.From, To: r.To})
+	local, skipped, err := s.store(rc).ListWithWarnings(store.Filter{Env: &env})
 	if err != nil {
 		return err
 	}
@@ -243,7 +244,7 @@ func (s *session) listArchiveOnly(cmd *cobra.Command, paths config.Paths, o list
 	if err != nil {
 		return err
 	}
-	f := store.Filter{From: r.From, To: r.To}
+	f := store.Filter{}
 	if s.envFlag != nil {
 		env, err := config.ParseEnv(*s.envFlag)
 		if err != nil {

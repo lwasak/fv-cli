@@ -248,16 +248,43 @@ func TestMerge_UnreadableAndMissingGross(t *testing.T) {
 
 func TestMerge_RangeFiltersLocalAndRemote(t *testing.T) {
 	local := []store.Meta{
-		localMeta(1, "FV/2026/07/001", "2026-07-31", store.StateDraft, "", 1),
+		localMeta(1, "FV/2026/07/001", "2026-07-31", store.StateRejected, "", 1),
 		localMeta(2, "FV/2026/08/001", "2026-08-01", store.StateDraft, "", 1),
 		localMeta(3, "FV/2026/10/009", "2026-10-31", store.StateDraft, "", 1),
-		localMeta(4, "FV/2026/11/001", "2026-11-01", store.StateDraft, "", 1),
+		localMeta(4, "FV/2026/11/001", "2026-11-01", store.StateVoid, "", 1),
 	}
 	remote := []ksef.InvoiceMeta{remoteMeta(kB, "OLD", "2026-07-31", "5260250995", own, "1"), remoteMeta(kC, "IN", "2026-10-31", "5260250995", own, "1")}
 	got := summary(Merge(local, remote, own, SideAll, rng()))
 	want := "2026-08-01/sale/FV/2026/08/001/draft 2026-10-31/sale/FV/2026/10/009/draft 2026-10-31/purchase/IN/ksef"
 	if got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestMerge_UnsettledLocalInvoicesIgnoreTheRangeAndSayWhatToDo(t *testing.T) {
+	var local []store.Meta
+	states := []store.State{store.StateReserved, store.StateDraft, store.StateSending, store.StateUnknown, store.StateAccepted, store.StateRejected, store.StateVoid}
+	for i, st := range states {
+		local = append(local, localMeta(i+1, fmt.Sprintf("FV/2025/01/%03d", i+1), "2025-01-15", st, "", 100))
+	}
+	rows := Merge(local, nil, own, SideAll, rng())
+	if len(rows) != 4 {
+		t.Fatalf("%d rows: %+v", len(rows), rows)
+	}
+	wants := []string{"fv discard FV/2025/01/001", "fv send FV/2025/01/002", "fv status FV/2025/01/003", "fv status FV/2025/01/004"}
+	for i, r := range rows {
+		if r.State != string(states[i]) || !strings.Contains(r.Hint, "outside the listed range") || !strings.Contains(r.Hint, wants[i]) || !strings.Contains(r.Hint, "2025-01-15") {
+			t.Errorf("row %d = %+v", i, r)
+		}
+	}
+	// an unsettled invoice inside the range has no such hint
+	in := Merge([]store.Meta{localMeta(1, "FV/2026/10/001", "2026-10-05", store.StateDraft, "", 1)}, nil, own, SideAll, rng())
+	if len(in) != 1 || in[0].Hint != "" {
+		t.Errorf("in range: %+v", in)
+	}
+	// a buyer-only list has no sales, so none of them
+	if got := Merge(local, nil, own, SideBuyer, rng()); len(got) != 0 {
+		t.Errorf("buyer list: %+v", got)
 	}
 }
 

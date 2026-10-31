@@ -305,7 +305,7 @@ fv list --from 2026-07-01 --to 2026-09-30 --as buyer
 fv --env prod list --month 2026-10
 ```
 
-`fv list` shows the invoices of the selected environment (`--env` or `ksef.environment`): the last three months including the current one by default, sales and purchases. The rows come from your archive and from KSeF (a metadata query for the sales and one for the purchases), merged so an invoice you sent with fv appears once, with fv's state. A row that exists only in KSeF has the state `ksef`; `DIR` says whether you are the seller or the buyer.
+`fv list` shows the invoices of the selected environment (`--env` or `ksef.environment`): the last three months including the current one by default, sales and purchases. The rows come from your archive and from KSeF (a metadata query for the sales and one for the purchases), merged so an invoice you sent with fv appears once, with fv's state. A row that exists only in KSeF has the state `ksef`; `DIR` says whether you are the seller or the buyer. An invoice of your own that is not settled (`reserved`, `draft`, `sending` or `unknown`) is always listed, even when its issue date is outside the range, with a note on stderr saying what to do (`fv status`, `fv send` or `fv discard`), because it needs your action.
 
 <!-- transcript:list -->
 ```text
@@ -319,7 +319,7 @@ ISSUED      NUMBER          DIR       SELLER                  BUYER             
 
 | Flag | Meaning |
 |---|---|
-| `--from`, `--to` | Issue dates, `YYYY-MM-DD`. Longer than 92 days takes several queries; `--to` is never later than today. |
+| `--from`, `--to` | Issue dates, `YYYY-MM-DD`. Longer than 92 days takes several queries; KSeF is never asked about a moment later than now. |
 | `--month YYYY-MM` | One month. Not together with `--from` or `--to`. |
 | `--as seller\|buyer\|all` | Only sales, only purchases (one query less), or all (default). |
 | `--offline` | Send nothing; show the archive and the KSeF rows cached by earlier lists. |

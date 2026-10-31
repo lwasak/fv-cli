@@ -100,15 +100,22 @@ func TestList_FilterMonthEnv(t *testing.T) {
 	}
 
 	// Without flags: the environment in use (test, from the config) and the default range
-	// (August to October), so the November draft and the prod invoice are not listed. No
-	// certificate is imported, so KSeF is not asked and the command still succeeds.
+	// (August to October), so the prod invoice is not listed. The November draft is outside
+	// the range but not settled, so it is listed with a hint. No certificate is imported, so
+	// KSeF is not asked and the command still succeeds.
 	code, out, errs := e.run("list")
 	if code != 0 {
 		t.Fatalf("code %d %s", code, errs)
 	}
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if len(lines) != 2 {
+	if len(lines) != 3 {
 		t.Fatalf("lines = %q", lines)
+	}
+	if f := strings.Fields(lines[2]); strings.Join(f, " ") != "2026-11-02 FV/2026/11/001 sale - - 50,00 EUR draft" {
+		t.Errorf("out-of-range draft row = %q", lines[2])
+	}
+	if !strings.Contains(errs, "note: FV/2026/11/001 (draft, issued 2026-11-02) is outside the listed range") {
+		t.Errorf("stderr lacks the hint: %q", errs)
 	}
 	if f := strings.Fields(lines[0]); strings.Join(f, " ") != "ISSUED NUMBER DIR SELLER BUYER GROSS CUR STATE" {
 		t.Errorf("header = %q", lines[0])
@@ -131,12 +138,17 @@ func TestList_FilterMonthEnv(t *testing.T) {
 		t.Errorf("prod out = %q", out)
 	}
 	_, out, _ = e.run("list", "--month", "2026-10")
-	if n := strings.Count(out, "\n"); n != 2 {
+	// the November draft is unsettled, so it is listed outside the month as well
+	if n := strings.Count(out, "\n"); n != 3 || !strings.Contains(out, "FV/2026/11/001") {
 		t.Errorf("month out = %q", out)
 	}
 	_, out, _ = e.run("list", "--month", "2026-12")
-	if strings.TrimSpace(out) != "no invoices" {
+	if n := strings.Count(out, "\n"); n != 2 || strings.Contains(out, "accepted") || !strings.Contains(out, "draft") {
 		t.Errorf("out = %q", out)
+	}
+	_, out, _ = e.run("list", "--month", "2026-12", "--as", "buyer")
+	if strings.TrimSpace(out) != "no invoices" {
+		t.Errorf("buyer out = %q", out)
 	}
 	if code, _, errs := e.run("list", "--month", "2026-13"); code != 1 || !strings.Contains(errs, "YYYY-MM") {
 		t.Errorf("bad month: %d %q", code, errs)
