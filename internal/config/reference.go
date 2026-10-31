@@ -50,7 +50,7 @@ var Reference = []Entry{
 	{
 		Key: "defaults.vat_rate", Type: "string", Default: "none (not set)",
 		Allowed: "23, 8, 5, zw (0 and np are not supported yet)", Example: `vat_rate = "23"`,
-		Description: "VAT rate code used when a party or flag does not set one.",
+		Description: "VAT rate code used for a line that has no rate of its own (no rate= in --line, no vat_rate in the item) when neither --rate nor the party sets one.",
 	},
 	{
 		Key: "defaults.payment_days", Type: "integer", Default: "14 (when unset)",
@@ -75,7 +75,7 @@ var Reference = []Entry{
 	{
 		Key: "defaults.line_template", Type: "string", Default: "Usługi za {month_name} {year}",
 		Allowed: "text with the tokens {month_name} {month_name_en} {year}, 1-512 characters", Example: `line_template = "Consulting for {month_name} {year}"`,
-		Description: "Invoice line description template.",
+		Description: "Description of the single line from --net or --qty/--unit-price, used when --desc is not given. Not used by --item or --line, whose lines bring their own description.",
 	},
 	{
 		Key: "defaults.unit", Type: "string", Default: "usł.",
@@ -126,7 +126,7 @@ var Reference = []Entry{
 	{
 		Key: "parties.<alias>.vat_rate", Type: "string", Default: "none (falls back to defaults.vat_rate)",
 		Allowed: "same as defaults.vat_rate", Example: `vat_rate = "8"`,
-		Description: "Per-party VAT rate override.",
+		Description: "Per-party VAT rate for a line that has no rate of its own, used when --rate is not given.",
 	},
 	{
 		Key: "parties.<alias>.payment_days", Type: "integer", Default: "none (falls back to defaults.payment_days)",
@@ -161,7 +161,7 @@ var Reference = []Entry{
 	{
 		Key: "parties.<alias>.line_template", Type: "string", Default: "none (falls back to defaults.line_template)",
 		Allowed: "same as defaults.line_template", Example: `line_template = "Consulting for {month_name} {year}"`,
-		Description: "Per-party line description template override.",
+		Description: "Per-party override of the description of the single line from --net or --qty/--unit-price. Not used by --item or --line.",
 	},
 	{
 		Key: "parties.<alias>.unit", Type: "string", Default: "none (falls back to defaults.unit)",
@@ -200,7 +200,7 @@ var Reference = []Entry{
 	},
 	{
 		Key: "items.<key>.unit_price", Type: "string", Default: "none (required)",
-		Allowed: `amount in zloty, e.g. "120,00" or "120.00" (quoted)`, Example: `unit_price = "120,00"`,
+		Allowed: `amount in the invoice currency, e.g. "120,00" or "120.00" (quoted)`, Example: `unit_price = "120,00"`,
 		Description: "Net unit price, in the invoice currency; quote it, a TOML number is rejected.",
 	},
 	{

@@ -188,7 +188,7 @@ Place of issue (P_1M) written to the invoice.
 
 ### `defaults.vat_rate`
 
-VAT rate code used when a party or flag does not set one.
+VAT rate code used for a line that has no rate of its own (no rate= in --line, no vat_rate in the item) when neither --rate nor the party sets one.
 
 - Type: `string`
 - Default: `none (not set)`
@@ -233,7 +233,7 @@ How the sale date (P_6) is derived from the issue date.
 
 ### `defaults.line_template`
 
-Invoice line description template.
+Description of the single line from --net or --qty/--unit-price, used when --desc is not given. Not used by --item or --line, whose lines bring their own description.
 
 - Type: `string`
 - Default: `Usługi za {month_name} {year}`
@@ -329,7 +329,7 @@ EU VAT id of the party named `<alias>`.
 
 ### `parties.<alias>.vat_rate`
 
-Per-party VAT rate override.
+Per-party VAT rate for a line that has no rate of its own, used when --rate is not given.
 
 - Type: `string`
 - Default: `none (falls back to defaults.vat_rate)`
@@ -392,7 +392,7 @@ Per-party sale date rule override.
 
 ### `parties.<alias>.line_template`
 
-Per-party line description template override.
+Per-party override of the description of the single line from --net or --qty/--unit-price. Not used by --item or --line.
 
 - Type: `string`
 - Default: `none (falls back to defaults.line_template)`
@@ -472,7 +472,7 @@ Net unit price, in the invoice currency; quote it, a TOML number is rejected.
 
 - Type: `string`
 - Default: `none (required)`
-- Allowed: `amount in zloty, e.g. "120,00" or "120.00" (quoted)`
+- Allowed: `amount in the invoice currency, e.g. "120,00" or "120.00" (quoted)`
 - Example: `unit_price = "120,00"`
 
 ### `items.<key>.quantity`
