@@ -10,6 +10,7 @@ import (
 
 	"github.com/lwasak/fv-cli/internal/config"
 	"github.com/lwasak/fv-cli/internal/fa3"
+	"github.com/lwasak/fv-cli/internal/ksef"
 	"github.com/lwasak/fv-cli/internal/ksef/ksefake"
 	"github.com/lwasak/fv-cli/internal/ksefcache"
 	"github.com/lwasak/fv-cli/internal/money"
@@ -147,7 +148,8 @@ func TestList_QueryRequestIsByIssueDateWithTheRequestedRange(t *testing.T) {
 			bodies = append(bodies, string(r.Body))
 		}
 	}
-	want := `{"dateRange":{"dateType":"Issue","from":"2026-09-01T00:00:00Z","to":"2026-09-30T23:59:59Z"},"subjectType":"Subject1"}`
+	// the month, widened by a day on each side; the rows outside it are dropped locally
+	want := `{"dateRange":{"dateType":"Issue","from":"2026-08-31T00:00:00Z","to":"2026-10-01T23:59:59Z"},"subjectType":"Subject1"}`
 	if len(bodies) != 1 || bodies[0] != want {
 		t.Errorf("bodies = %q", bodies)
 	}
@@ -460,5 +462,35 @@ func TestList_DoesNotCacheOrQueryOtherEnvironments(t *testing.T) {
 	c, _ := ksefcache.Open(fx.dataDir, config.EnvDemo, ksefNIP, nil)
 	if got, err := c.InRange("", ""); err != nil || len(got) != 0 {
 		t.Errorf("demo cache has %d rows (%v)", len(got), err)
+	}
+}
+
+func TestList_MetadataCallsAreSpaced(t *testing.T) {
+	fx := newListFx(t)
+	fx.sleeps = nil
+	if code, _, errs := fx.run("list"); code != 0 {
+		t.Fatalf("list: %s", errs)
+	}
+	spaced := 0
+	for _, d := range fx.sleeps {
+		// the real clock runs between the calls, so the wait is a little under the spacing
+		if d > 0 && d <= ksef.MetadataSpacing {
+			spaced++
+		}
+	}
+	if fx.metadataCalls() != 2 || spaced != 1 {
+		t.Errorf("%d waits of %v between the two metadata calls, sleeps %v", spaced, ksef.MetadataSpacing, fx.sleeps)
+	}
+}
+
+func TestList_OddKSeFRecordIsSkippedWithAWarning(t *testing.T) {
+	fx := newListFx(t)
+	fx.fake.Handle("POST", "/invoices/query/metadata", func(ksefake.Request) ksefake.Response {
+		return ksefake.Response{Body: `{"hasMore":false,"isTruncated":false,"invoices":[` +
+			`{"ksefNumber":"not-a-number","invoiceNumber":"X","issueDate":"2026-10-01","seller":{"nip":"5252248481"},"buyer":{"identifier":{"type":"None"}},"grossAmount":1}]}`}
+	})
+	code, out, errs := fx.run("list")
+	if code != 0 || !strings.Contains(errs, "were skipped") || !strings.Contains(out, "FV/2026/10/001") {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 }

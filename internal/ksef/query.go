@@ -36,7 +36,19 @@ const (
 	// DefaultQueryBudget is the number of metadata calls one run may make: half of the
 	// 20/hour limit of the invoiceMetadata group.
 	DefaultQueryBudget = 10
+	// MetadataSpacing is the pause kept between two metadata calls of one client: the
+	// invoiceMetadata group allows 8 requests a second, and repeated overruns lengthen the
+	// block, so fv stays well below.
+	MetadataSpacing = 150 * time.Millisecond
+	// MaxInvoiceNumberLength is the longest invoiceNumber filter KSeF accepts.
+	MaxInvoiceNumberLength = 256
 )
+
+// MetadataFilter narrows a metadata query beyond subject type and dates.
+type MetadataFilter struct {
+	// InvoiceNumber, when not empty, is an exact match on the number the issuer gave.
+	InvoiceNumber string
+}
 
 // ErrQueryBudget is returned by QueryAllMetadata, together with the invoices collected so
 // far, when the call budget ran out.
@@ -75,6 +87,8 @@ type MetadataPage struct {
 	Invoices    []InvoiceMeta
 	HasMore     bool
 	IsTruncated bool
+	// Skipped counts records left out because their KSeF number or issue date was unusable.
+	Skipped int
 }
 
 type metadataWire struct {
@@ -126,21 +140,39 @@ func withHint(err error) error {
 // is the page index (0 is the first page). The POST is never retried on 429 (the limit is
 // 20 per hour and an overrun lengthens the block): the *Error carries RetryAfter.
 func (c *Client) QueryMetadata(ctx context.Context, s *Session, subj SubjectType, from, to time.Time, pageOffset, pageSize int) (MetadataPage, error) {
+	return c.QueryMetadataFiltered(ctx, s, subj, from, to, MetadataFilter{}, pageOffset, pageSize)
+}
+
+// QueryMetadataFiltered is QueryMetadata with a filter. Every call after the first of a
+// client waits until MetadataSpacing has passed since the previous one (through the
+// injectable sleep). A record with an unusable ksefNumber or issueDate is skipped (counted
+// in Page.Skipped and in SkippedRecords) instead of failing the page.
+func (c *Client) QueryMetadataFiltered(ctx context.Context, s *Session, subj SubjectType, from, to time.Time, filter MetadataFilter, pageOffset, pageSize int) (MetadataPage, error) {
 	if subj != Subject1 && subj != Subject2 {
 		return MetadataPage{}, fmt.Errorf("ksef: unsupported subject type %q", subj)
 	}
 	if pageSize < MetadataMinPageSize || pageSize > MetadataMaxPageSize || pageOffset < 0 {
 		return MetadataPage{}, fmt.Errorf("ksef: invalid page %d of size %d (size %d..%d)", pageOffset, pageSize, MetadataMinPageSize, MetadataMaxPageSize)
 	}
-	body, err := json.Marshal(map[string]any{
+	if len(filter.InvoiceNumber) > MaxInvoiceNumberLength {
+		return MetadataPage{}, fmt.Errorf("ksef: an invoice number filter is at most %d characters", MaxInvoiceNumberLength)
+	}
+	reqBody := map[string]any{
 		"subjectType": string(subj),
 		"dateRange": map[string]any{
 			"dateType": "Issue",
 			"from":     from.UTC().Format("2006-01-02T15:04:05Z"),
 			"to":       to.UTC().Format("2006-01-02T15:04:05Z"),
 		},
-	})
+	}
+	if filter.InvoiceNumber != "" {
+		reqBody["invoiceNumber"] = filter.InvoiceNumber
+	}
+	body, err := json.Marshal(reqBody)
 	if err != nil {
+		return MetadataPage{}, err
+	}
+	if err := c.paceMetadata(ctx); err != nil {
 		return MetadataPage{}, err
 	}
 	q := url.Values{}
@@ -160,15 +192,21 @@ func (c *Client) QueryMetadata(ctx context.Context, s *Session, subj SubjectType
 	}
 	page := MetadataPage{HasMore: w.HasMore, IsTruncated: w.IsTruncated}
 	for _, x := range w.Invoices {
-		if err := ValidateKSeFNumber(x.KSeFNumber); err != nil {
-			return MetadataPage{}, fmt.Errorf("ksef: invoice query answer: %w", err)
-		}
 		issue := x.IssueDate
 		if len(issue) > 10 {
 			issue = issue[:10]
 		}
-		if _, err := invoice.ParseDate(issue); err != nil {
-			return MetadataPage{}, fmt.Errorf("ksef: invoice query answer: issue date of %s: %w", x.KSeFNumber, err)
+		verr := ValidateKSeFNumber(x.KSeFNumber)
+		if verr == nil {
+			if _, derr := invoice.ParseDate(issue); derr != nil {
+				verr = fmt.Errorf("issue date of %s: %w", x.KSeFNumber, derr)
+			}
+		}
+		if verr != nil {
+			page.Skipped++
+			c.skippedRecords.Add(1)
+			c.log.Warn("ksef invoice query: record skipped", "error", verr.Error())
+			continue
 		}
 		page.Invoices = append(page.Invoices, InvoiceMeta{
 			KSeFNumber: x.KSeFNumber, InvoiceNumber: x.InvoiceNumber, IssueDate: issue,
@@ -183,17 +221,44 @@ func (c *Client) QueryMetadata(ctx context.Context, s *Session, subj SubjectType
 	return page, nil
 }
 
+// paceMetadata makes sure MetadataSpacing has passed since the previous metadata call.
+func (c *Client) paceMetadata(ctx context.Context) error {
+	c.paceMu.Lock()
+	defer c.paceMu.Unlock()
+	if !c.lastMetadata.IsZero() {
+		if wait := MetadataSpacing - c.now().Sub(c.lastMetadata); wait > 0 {
+			if err := c.sleep(ctx, wait); err != nil {
+				return err
+			}
+		}
+	}
+	c.lastMetadata = c.now()
+	return nil
+}
+
+// SkippedRecords is the number of metadata records this client left out because their
+// KSeF number or issue date was unusable.
+func (c *Client) SkippedRecords() int { return int(c.skippedRecords.Load()) }
+
 const dateLayout = "2006-01-02"
 
 // QueryAllMetadata lists every invoice of the subject type issued from fromDate to toDate
 // (YYYY-MM-DD, inclusive; toDate is capped at today in Warsaw). It splits the range into
 // windows of at most QueryWindowDays, pages with pageSize 250, restarts a truncated
-// (10 000 record) result from the date of its last record and removes duplicates.
+// (10 000 record) result from the date of its last record and removes duplicates. Each
+// request asks for one day more on both sides of its window (the end never later than
+// now, UTC), and the issueDate of every record is checked against the exact range here, so
+// a different reading of the bounds on KSeF's side cannot lose the edge days.
 //
 // budget, when not nil, is the number of calls still allowed; every call uses one. When it
 // is used up the invoices collected so far come back with ErrQueryBudget. Any other error
 // also returns what was collected before it.
 func (c *Client) QueryAllMetadata(ctx context.Context, s *Session, subj SubjectType, fromDate, toDate string, budget *int) ([]InvoiceMeta, error) {
+	return c.QueryAllMetadataFiltered(ctx, s, subj, fromDate, toDate, MetadataFilter{}, budget)
+}
+
+// QueryAllMetadataFiltered is QueryAllMetadata with a filter.
+func (c *Client) QueryAllMetadataFiltered(ctx context.Context, s *Session, subj SubjectType, fromDate, toDate string, filter MetadataFilter, budget *int) ([]InvoiceMeta, error) {
 	from, err := time.Parse(dateLayout, fromDate)
 	if err != nil {
 		return nil, fmt.Errorf("ksef: invalid from date %q: %w", fromDate, err)
@@ -212,7 +277,7 @@ func (c *Client) QueryAllMetadata(ctx context.Context, s *Session, subj SubjectT
 		if wt.After(to) {
 			wt = to
 		}
-		got, err := c.queryWindow(ctx, s, subj, wf, wt, budget, seen)
+		got, err := c.queryWindow(ctx, s, subj, wf, wt, filter, budget, seen)
 		out = append(out, got...)
 		if err != nil {
 			return out, err
@@ -222,7 +287,7 @@ func (c *Client) QueryAllMetadata(ctx context.Context, s *Session, subj SubjectT
 }
 
 // queryWindow pages through one window of at most QueryWindowDays.
-func (c *Client) queryWindow(ctx context.Context, s *Session, subj SubjectType, from, to time.Time, budget *int, seen map[string]bool) ([]InvoiceMeta, error) {
+func (c *Client) queryWindow(ctx context.Context, s *Session, subj SubjectType, from, to time.Time, filter MetadataFilter, budget *int, seen map[string]bool) ([]InvoiceMeta, error) {
 	var out []InvoiceMeta
 	lo, hi := from.Format(dateLayout), to.Format(dateLayout)
 	cur := from
@@ -234,7 +299,15 @@ func (c *Client) queryWindow(ctx context.Context, s *Session, subj SubjectType, 
 			}
 			*budget--
 		}
-		page, err := c.QueryMetadata(ctx, s, subj, cur, to.Add(24*time.Hour-time.Second), offset, MetadataMaxPageSize)
+		apiFrom := cur.AddDate(0, 0, -1)
+		apiTo := to.AddDate(0, 0, 1).Add(24*time.Hour - time.Second)
+		if now := c.now().UTC().Truncate(time.Second); apiTo.After(now) {
+			apiTo = now
+		}
+		if apiTo.Before(apiFrom) {
+			apiTo = apiFrom
+		}
+		page, err := c.QueryMetadataFiltered(ctx, s, subj, apiFrom, apiTo, filter, offset, MetadataMaxPageSize)
 		if err != nil {
 			return out, err
 		}

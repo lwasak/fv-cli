@@ -195,6 +195,9 @@ func (s *session) syncKSeF(cmd *cobra.Command, rc *runContext, cache *ksefcache.
 			break
 		}
 	}
+	if n := client.SkippedRecords(); n > 0 {
+		_, _ = fmt.Fprintf(errw, "warning: %d KSeF record(s) with an unreadable KSeF number or issue date were skipped\n", n)
+	}
 	if failure == nil || len(fetched) > 0 {
 		if err := cache.Merge(ctx, fetched); err != nil {
 			_, _ = fmt.Fprintf(errw, "warning: the KSeF rows could not be cached: %v\n", err)

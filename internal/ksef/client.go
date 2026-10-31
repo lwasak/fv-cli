@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lwasak/fv-cli/internal/config"
@@ -54,6 +56,11 @@ type Client struct {
 	log     *slog.Logger
 	now     func() time.Time
 	sleep   func(context.Context, time.Duration) error
+
+	// pacing of the metadata queries
+	paceMu         sync.Mutex
+	lastMetadata   time.Time
+	skippedRecords atomic.Int64
 }
 
 // NewClient returns a client for env using its fixed base URL and the hardened HTTP

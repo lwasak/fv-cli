@@ -24,6 +24,8 @@ type queryFixture struct {
 	s *Session
 	// wantViolations is set by a test that makes the client's mistake on purpose.
 	wantViolations bool
+	// slept records the waits the client asked for (they are not really waited).
+	slept *[]time.Duration
 }
 
 func newQueryFixture(t *testing.T, truncateAt int) *queryFixture {
@@ -32,7 +34,9 @@ func newQueryFixture(t *testing.T, truncateAt int) *queryFixture {
 	q := f.EnableQuery(ksefake.QueryOptions{NIP: queryNIP, Bearer: queryBearer, TruncateAt: truncateAt})
 	c := newTestClient(t, f, config.EnvDemo, t.TempDir(), nil)
 	c.now = func() time.Time { return t0 }
-	fx := &queryFixture{f: f, q: q, c: c, s: &Session{env: config.EnvDemo, accessToken: queryBearer}}
+	slept := &[]time.Duration{}
+	c.SetSleep(func(_ context.Context, d time.Duration) error { *slept = append(*slept, d); return nil })
+	fx := &queryFixture{f: f, q: q, c: c, s: &Session{env: config.EnvDemo, accessToken: queryBearer}, slept: slept}
 	t.Cleanup(func() {
 		if v := q.Violations(); len(v) > 0 && !fx.wantViolations {
 			t.Errorf("the client made protocol errors: %v", v)
@@ -156,9 +160,10 @@ func TestQueryAll_SplitsIntoWindowsOf92Days(t *testing.T) {
 		t.Fatalf("%d queries, want 3", len(qs))
 	}
 	wantRanges := [][2]string{
-		{"2026-01-01T00:00:00Z", "2026-04-02T23:59:59Z"}, // 92 days
-		{"2026-04-03T00:00:00Z", "2026-07-03T23:59:59Z"},
-		{"2026-07-04T00:00:00Z", "2026-07-19T23:59:59Z"},
+		// every window of 92 days is asked for one day earlier and one day later (94 days)
+		{"2025-12-31T00:00:00Z", "2026-04-03T23:59:59Z"},
+		{"2026-04-02T00:00:00Z", "2026-07-04T23:59:59Z"},
+		{"2026-07-03T00:00:00Z", "2026-07-20T23:59:59Z"},
 	}
 	for i, q := range qs {
 		dr := q.Body["dateRange"].(map[string]any)
@@ -284,7 +289,7 @@ func TestQueryAll_BudgetIsSharedAcrossCalls(t *testing.T) {
 	}
 }
 
-func TestQueryAll_ToIsCappedAtTodayInWarsaw(t *testing.T) {
+func TestQueryAll_ToIsCappedAtNowAndNeverInTheFuture(t *testing.T) {
 	fx := newQueryFixture(t, 0)
 	// 23:30 UTC on 30 Oct is already 31 Oct in Warsaw (CET after the 25 Oct change)
 	fx.c.now = func() time.Time { return time.Date(2026, 10, 30, 23, 30, 0, 0, time.UTC) }
@@ -292,25 +297,97 @@ func TestQueryAll_ToIsCappedAtTodayInWarsaw(t *testing.T) {
 		t.Fatal(err)
 	}
 	dr := fx.queries()[0].Body["dateRange"].(map[string]any)
-	if dr["to"] != "2026-10-31T23:59:59Z" {
-		t.Errorf("to = %v", dr["to"])
+	if dr["to"] != "2026-10-30T23:30:00Z" || dr["from"] != "2026-09-30T00:00:00Z" {
+		t.Errorf("dateRange = %v", dr)
 	}
 }
 
-func TestQueryAll_ClientSideDateFilter(t *testing.T) {
+func TestQueryAll_WidenedRangeStillReturnsOnlyTheExactRange(t *testing.T) {
 	fx := newQueryFixture(t, 0)
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: "BEFORE", IssueDate: "2026-08-31", SellerNIP: queryNIP}, nil)
+	in := fx.q.Add(ksefake.QMeta{InvoiceNumber: "FIRST", IssueDate: "2026-09-01", SellerNIP: queryNIP}, nil)
+	fx.q.Add(ksefake.QMeta{InvoiceNumber: "AFTER", IssueDate: "2026-10-01", SellerNIP: queryNIP}, nil)
+	got, err := fx.c.QueryAllMetadata(context.Background(), fx.s, Subject1, "2026-09-01", "2026-09-30", nil)
+	if err != nil || len(got) != 1 || got[0].KSeFNumber != in {
+		t.Fatalf("%v %+v", err, got)
+	}
+	dr := fx.queries()[0].Body["dateRange"].(map[string]any)
+	if dr["from"] != "2026-08-31T00:00:00Z" || dr["to"] != "2026-10-01T23:59:59Z" {
+		t.Errorf("dateRange = %v", dr)
+	}
+}
+
+func TestQueryMetadata_CallsAreSpacedByTheInjectableSleep(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	fx.add(t, 600, "2026-09-01", 28)
+	if _, err := fx.c.QueryAllMetadata(context.Background(), fx.s, Subject1, "2026-09-01", "2026-09-30", nil); err != nil {
+		t.Fatal(err)
+	}
+	// three pages: no wait before the first call, the full spacing before the others (the
+	// fixture clock does not move)
+	if n := len(fx.queries()); n != 3 {
+		t.Fatalf("%d queries", n)
+	}
+	if got := *fx.slept; len(got) != 2 || got[0] != MetadataSpacing || got[1] != MetadataSpacing {
+		t.Errorf("slept %v", got)
+	}
+	// another subject on the same client keeps the pace
+	if _, err := fx.c.QueryAllMetadata(context.Background(), fx.s, Subject2, "2026-09-01", "2026-09-30", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := *fx.slept; len(got) != 3 {
+		t.Errorf("slept %v", got)
+	}
+}
+
+func TestQueryMetadata_NoWaitWhenEnoughTimeHasPassed(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	now := t0
+	fx.c.now = func() time.Time { now = now.Add(100 * time.Millisecond); return now }
+	for i := 0; i < 2; i++ {
+		if _, err := fx.c.QueryMetadata(context.Background(), fx.s, Subject1, t0.AddDate(0, -1, 0), t0, 0, 10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// the clock moves 100 ms per reading, so the second call waits only the rest of 150 ms
+	if got := *fx.slept; len(got) != 1 || got[0] <= 0 || got[0] >= MetadataSpacing {
+		t.Errorf("slept %v", got)
+	}
+}
+
+func TestQueryMetadata_InvoiceNumberFilterIsSent(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	_, err := fx.c.QueryMetadataFiltered(context.Background(), fx.s, Subject2, t0.AddDate(0, -1, 0), t0, MetadataFilter{InvoiceNumber: "ZAK/09/15"}, 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fx.queries()[0].Body["invoiceNumber"]; got != "ZAK/09/15" {
+		t.Errorf("invoiceNumber = %v", got)
+	}
+	if _, err := fx.c.QueryMetadataFiltered(context.Background(), fx.s, Subject2, t0, t0, MetadataFilter{InvoiceNumber: strings.Repeat("x", 257)}, 0, 10); err == nil {
+		t.Error("a 257 character number was sent")
+	}
+	if n := len(fx.queries()); n != 1 {
+		t.Errorf("%d queries", n)
+	}
+}
+
+func TestQueryAll_OddRecordsAreSkippedNotFatal(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	good := fx.q.Add(ksefake.QMeta{InvoiceNumber: "GOOD", IssueDate: "2026-09-15", SellerNIP: queryNIP}, nil)
 	fx.f.Handle("POST", "/invoices/query/metadata", func(ksefake.Request) ksefake.Response {
 		return ksefake.Response{Body: `{"hasMore":false,"isTruncated":false,"invoices":[` +
-			metaJSON("5833281095-20260831-0100001AF629-00", "2026-08-31") + `,` +
-			metaJSON("5833281095-20260915-0100001AF62A-00", "2026-09-15") + `]}`}
+			// hand-made numbers have wrong check digits
+			metaJSON("5833281095-20260915-0100001AF629-00", "2026-09-15") + `,` +
+			metaJSON(good, "not-a-date") + `,` +
+			metaJSON(good, "2026-09-15") + `]}`}
 	})
 	got, err := fx.c.QueryAllMetadata(context.Background(), fx.s, Subject1, "2026-09-01", "2026-09-30", nil)
-	if err == nil {
-		// the hand-made numbers have wrong check digits, so the answer is refused
-		t.Fatalf("got %v", got)
+	if err != nil || len(got) != 1 || got[0].KSeFNumber != good {
+		t.Fatalf("%v %+v", err, got)
 	}
-	if !errors.Is(err, ErrBadKSeFNumber) {
-		t.Errorf("err = %v", err)
+	if n := fx.c.SkippedRecords(); n != 2 {
+		t.Errorf("skipped %d, want 2", n)
 	}
 }
 
