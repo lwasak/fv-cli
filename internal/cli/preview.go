@@ -79,9 +79,21 @@ func renderInvoice(w io.Writer, m *store.Meta, o previewOpts) {
 	p("\n")
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintln(tw, "No\tDescription\tQty\tUnit\tPrice\tNet\tRate\t")
+	hasIndex := false
 	for _, l := range m.Lines {
-		_, _ = fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t\n", l.No, l.Description, trimQty(l.Quantity),
+		hasIndex = hasIndex || l.Index != ""
+	}
+	if hasIndex {
+		_, _ = fmt.Fprintln(tw, "No\tIndex\tDescription\tQty\tUnit\tPrice\tNet\tRate\t")
+	} else {
+		_, _ = fmt.Fprintln(tw, "No\tDescription\tQty\tUnit\tPrice\tNet\tRate\t")
+	}
+	for _, l := range m.Lines {
+		cols := fmt.Sprintf("%d\t", l.No)
+		if hasIndex {
+			cols += orDash(l.Index) + "\t"
+		}
+		_, _ = fmt.Fprintf(tw, "%s%s\t%s\t%s\t%s\t%s\t%s\t\n", cols, l.Description, trimQty(l.Quantity),
 			l.Unit, money.FormatPL(l.UnitPrice), money.FormatPL(l.Net), rateLabel(l.Rate))
 	}
 	_ = tw.Flush()
@@ -123,6 +135,16 @@ func renderInvoice(w io.Writer, m *store.Meta, o previewOpts) {
 		acct += "  (on White List: NO)"
 	}
 	p("%s\n", acct)
+	if m.BankName != "" || m.BankSWIFT != "" {
+		var bank []string
+		if m.BankName != "" {
+			bank = append(bank, m.BankName)
+		}
+		if m.BankSWIFT != "" {
+			bank = append(bank, "SWIFT "+m.BankSWIFT)
+		}
+		p("Bank:      %s\n", strings.Join(bank, ", "))
+	}
 	p("Payment:   transfer (FormaPlatnosci 6)\n")
 
 	if o.Detail {

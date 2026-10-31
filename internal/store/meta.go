@@ -49,6 +49,8 @@ type Meta struct {
 	Gross    money.Amount   `json:"gross"`
 
 	BankAccount     string `json:"bankAccount"`
+	BankName        string `json:"bankName,omitempty"`
+	BankSWIFT       string `json:"bankSwift,omitempty"`
 	BankOnWhiteList *bool  `json:"bankOnWhiteList,omitempty"`
 
 	Exchange *Exchange `json:"exchange,omitempty"`
@@ -90,6 +92,10 @@ type LineSnapshot struct {
 	UnitPrice   money.Amount `json:"unitPrice"`
 	Net         money.Amount `json:"net"`
 	Rate        string       `json:"rate"`
+	Item        string       `json:"item,omitempty"` // config key of the saved item, when the line came from one
+	Index       string       `json:"index,omitempty"`
+	PKWiU       string       `json:"pkwiu,omitempty"`
+	GTIN        string       `json:"gtin,omitempty"`
 }
 
 // RateTotal is the totals of one VAT rate.

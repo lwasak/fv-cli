@@ -392,7 +392,7 @@ func TestIssue_HelpMentionsEveryFlag(t *testing.T) {
 		t.Fatalf("exit %d", code)
 	}
 	for _, want := range []string{"--to", "--net", "--qty", "--unit-price", "--rate", "--currency", "--issue-date", "--sale-date",
-		"--desc", "--validate", "--send", "--yes", "--net \"18500,43\"", "Examples:"} {
+		"--desc", "--item", "--line", "--validate", "--send", "--yes", "--net \"18500,43\"", "--item dev=160", "Examples:"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("issue --help lacks %q", want)
 		}
