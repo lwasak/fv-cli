@@ -48,7 +48,7 @@ func mkdirAll(path string) error {
 		if err := os.Mkdir(missing[i], 0o700); err != nil && !os.IsExist(err) {
 			return err
 		}
-		if err := os.Chmod(missing[i], 0o700); err != nil {
+		if err := os.Chmod(missing[i], 0o700); err != nil { // #nosec G302 -- directories need the execute bit; 0700 is user-only
 			return err
 		}
 	}
