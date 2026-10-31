@@ -85,7 +85,7 @@ The invoice is now a **draft**. It owns its number. Look at the preview with car
 - **Sale date.** It follows `defaults.sale_date` (the issue date by default). `last_day_of_month` and `last_day_of_previous_month` fit invoicing at month's end or just after it. Use `--sale-date` to set it by hand.
 - **Due date.** Issue date plus `payment_days` (14 by default).
 - **Seller and buyer** with VAT status, when the registry was checked and the registry's request id.
-- **Account.** `on White List: yes` means the bank account is one the seller published. `NO` comes with a warning: check `bank_account`, because the buyer pays to that account, and paying to an account missing from the White List can cause problems for the buyer.
+- **Account.** `on White List: yes` means the bank account is one the seller published. `NO` comes with a warning: check `bank_account`, because the buyer pays to that account, and paying to an account missing from the White List can cause problems for the buyer. A `Bank:` line with the bank name and SWIFT follows when `bank_name` or `swift` is configured next to the account.
 - **Warnings** at the bottom. fv warns when: the gross amount is 15 000 PLN or more (split payment, MPP, may be mandatory for some goods and services, and fv does not support it); the buyer is not an active VAT payer; the issue date is in the future.
 
 ### More ways to say what you sold
@@ -102,7 +102,79 @@ fv issue --to acme --net "2000" --validate
 - `--issue-date` and `--sale-date` take `YYYY-MM-DD`. A draft may carry a future issue date, but fv will not send it until that day.
 - `--validate` also checks the XML against the FA(3) schema with `xmllint`, which must be on your `PATH`.
 
-One invoice has one line in v1. Corrections, advance invoices and PDF output are not supported.
+An invoice with several lines, or the same lines every month, is the next section. Corrections, advance invoices and PDF output are not supported.
+
+### Several lines and saved items
+
+Describe the thing you bill once, as an **item** in the config, and bill it by its key:
+
+```toml
+[items.dev]
+name = "Usługi programistyczne {month_name} {year}"
+unit = "godz."
+unit_price = "120,00"
+index = "DEV-01"
+```
+
+Quote `unit_price` (and `quantity`): a TOML number is not money, and fv refuses it. Every item key is documented in the [config reference](config-reference.md).
+
+```powershell
+fv issue --to acme --item dev=160
+fv issue --to acme --item dev=160 --item support
+fv issue --to acme --line "desc=Hosting {month_name_en} {year}; price=19,99; unit=mies."
+fv issue --to acme --item dev=160 --line "desc=Hosting {month_name_en} {year}; price=19,99; unit=mies."
+```
+
+- `--item <key>` bills a saved item. `--item <key>=<qty>` sets the quantity (`"dev=1,5"` works; quote the value when it has a comma). Without a quantity fv uses the item's `quantity`, else 1.
+- `--line` adds an ad-hoc line from **named fields separated by `;`**: `desc` (required), `price` (net unit price) **or** `net` (the line's net amount, quantity 1), and optionally `qty`, `unit`, `rate`, `index`, `pkwiu`, `gtin`. Quote the whole value. `qty` cannot be used with `net`. A `;` cannot be part of a value; put text like that in an item instead.
+- The names are there on purpose. A price and a quantity are both numbers, so a positional form would turn a swapped pair into a valid invoice with the wrong amount.
+- Both flags may be repeated and mixed. The lines appear **in the order you type them**.
+- Without any line flag, the items listed in the party's table are billed: `items = ["dev", "support"]` under `[parties.acme]` makes `fv issue --to acme` bill both. Any line flag replaces that list.
+- `--net`, `--qty`, `--unit-price` and `--desc` describe one line, so they cannot be combined with `--item` or `--line`.
+- The **VAT rate** of a line is, in this order: its own `rate=` or the item's `vat_rate`; then `--rate`; then the party's `vat_rate`; then `[defaults]`. A product with its own rate (books at 5%) therefore keeps it when you pass `--rate`. The preview shows the rate of every line.
+- The **unit** is the line's `unit=` or the item's `unit`, then the party's, then `[defaults]`, then `usł.`.
+- The **exemption basis** is one per invoice. As soon as any line is `zw`, `exemption_basis` must be set.
+- An item's price is in the invoice currency and is never converted. An item with `currency = "PLN"` on a EUR invoice is refused; use a `--line` or an item priced in EUR.
+- An invoice has at most 10 000 lines, and the XML at most 1 MB.
+
+VAT is added up once per rate from the line net amounts, not line by line; [Amounts](amounts.md#several-lines-and-rounding) shows the rule.
+
+<!-- transcript:issue-multi -->
+```text
+$ fv issue --to acme --item dev=40 --line "desc=Hosting {month_name_en} {year}; price=19,99; unit=mies."
+ENVIRONMENT: TEST
+
+Invoice:   FV/2026/10/003   [draft]
+Issued:    2026-10-31
+Sale date: 2026-10-31
+Due date:  2026-11-14
+Currency:  PLN
+
+Seller:    MOJA FIRMA JANUSZ NOWAK
+           ul. Świętojańska 10/3, 81-368 Gdynia
+           NIP 5260250274
+           VAT: Czynny (checked 2026-10-31 10:00, White List requestId s3ll3-r000001)
+
+Buyer:     ACME SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ
+           ul. Prosta 51, 00-838 Warszawa
+           NIP 5252248481
+           VAT: Czynny (checked 2026-10-31 10:00, White List requestId a1b2c-d3e4f5g)
+
+  No   Index                              Description  Qty   Unit   Price      Net  Rate
+   1  DEV-01  Usługi programistyczne październik 2026   40  godz.  120,00  4800,00   23%
+   2       -                     Hosting October 2026    1  mies.   19,99    19,99   23%
+
+  Rate      Net      VAT    Gross
+   23%  4819,99  1108,60  5928,59
+Total:     5928,59 PLN
+
+Account:   PL61 1090 1014 0000 0712 1981 2874  (on White List: yes)
+Payment:   transfer (FormaPlatnosci 6)
+
+Nothing was sent to KSeF. To send: fv send FV/2026/10/003
+```
+
+Items can carry an `index`, a `pkwiu` and a `gtin`. They are written to the invoice, and the preview, `fv show` and the KSeF view print an Index column when at least one line has an index.
 
 ## 2. Show it
 

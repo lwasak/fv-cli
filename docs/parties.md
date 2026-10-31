@@ -84,7 +84,7 @@ See [Troubleshooting](troubleshooting.md#white-list-quota-reached) if you hit it
 
 ## Per-party invoice settings
 
-A `[parties.<alias>]` table can also hold settings that apply only to that buyer: `vat_rate`, `payment_days`, `bank_account`, `currency`, `sale_date`, `line_template`, `unit`, `exemption_basis`, and `name` and `address` overrides. Example for a buyer you invoice in euro on the last day of the month with 30 days to pay:
+A `[parties.<alias>]` table can also hold settings that apply only to that buyer: `vat_rate`, `payment_days`, `bank_account`, `currency`, `sale_date`, `line_template`, `unit`, `exemption_basis`, `bank_name`, `swift`, `items`, and `name` and `address` overrides. Example for a buyer you invoice in euro on the last day of the month with 30 days to pay:
 
 ```toml
 [parties.berlin]
@@ -100,6 +100,11 @@ unit = "h"
 The precedence is: command-line flag, then the party's table, then `[defaults]`, then the built-in default. Details and every key: [Config reference](config-reference.md#precedence).
 
 Exactly one of `nip` and `vat_id` must be set in a party table; `fv config validate` reports anything else.
+
+### Bank name, SWIFT and saved items
+
+- **`bank_name` and `swift`** describe the bank account and are written next to it on the invoice. They always come from the **same table as the `bank_account` in use**: a party with its own `bank_account` does not get the bank name or SWIFT of `[defaults]`, and setting either in a party table without `bank_account` is a config error. Give the party its own `bank_name` and `swift` when you give it its own account.
+- **`items`** is a list of keys of `[items.<key>]` tables, for example `items = ["dev", "support"]`. `fv issue --to <alias>` with no `--net`, `--item` or `--line` bills those items; any line flag replaces the list. See [Workflow](workflow.md#several-lines-and-saved-items).
 
 ## Registries always use production data
 

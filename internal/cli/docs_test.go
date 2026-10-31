@@ -14,6 +14,7 @@ import (
 	"github.com/lwasak/fv-cli/internal/config"
 	"github.com/lwasak/fv-cli/internal/ksef"
 	"github.com/lwasak/fv-cli/internal/money"
+	"github.com/lwasak/fv-cli/internal/validate"
 )
 
 const docsDir = "../../docs"
@@ -427,5 +428,34 @@ func TestDocs_KSeFNumbersHaveAValidChecksum(t *testing.T) {
 				t.Errorf("%s: %s: %v", filepath.Base(f), n, err)
 			}
 		}
+	}
+}
+
+// TestDocs_ConfigExampleIsAValidConfig loads the example config of docs/config-reference.md
+// the way fv does (strictly) and validates it.
+func TestDocs_ConfigExampleIsAValidConfig(t *testing.T) {
+	page := readDoc(t, "config-reference.md")
+	_, after, ok := strings.Cut(page, "## Example\n")
+	if !ok {
+		t.Fatal("config-reference.md has no Example section")
+	}
+	_, body, ok := strings.Cut(after, "```toml\n")
+	if !ok {
+		t.Fatal("the Example section has no toml block")
+	}
+	toml, _, _ := strings.Cut(body, "```")
+	p := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(p, []byte(toml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(p)
+	if err != nil {
+		t.Fatalf("the example does not load: %v", err)
+	}
+	if findings := validate.Config(cfg); len(findings) > 0 {
+		t.Errorf("the example config has findings: %v", findings)
+	}
+	if len(cfg.Items) == 0 || cfg.Defaults.SWIFT == "" {
+		t.Error("the example should show items and the bank fields")
 	}
 }

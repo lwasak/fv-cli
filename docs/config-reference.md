@@ -51,6 +51,10 @@ $env:FV_DATA_DIR = "$HOME\work\fv\data"
 3. `[defaults]`;
 4. the built-in default shown for the key (or an error when the invoice cannot be made without it: `vat_rate`, `bank_account`, and `exemption_basis` for `zw`).
 
+**The bank group.** `bank_name` and `swift` are not resolved one by one: they are taken from the same layer as the `bank_account` that won, and only from there. A party's own `bank_account` therefore never gets the `bank_name` or `swift` of `[defaults]`. In a party table they need `bank_account` in the same table.
+
+**Per line.** An invoice line takes its VAT rate from, in order: the line's own `rate=` (or the saved item's `vat_rate`), the `--rate` flag, the party's `vat_rate`, `[defaults]`. Its unit comes from the line's `unit=` (or the item's `unit`), then the party's, then `[defaults]`, then `usł.`. Items are not part of the per-key precedence: they are read from `[items.<key>]` and from `parties.<alias>.items`. The exemption basis is one for the whole invoice.
+
 **Names and addresses** are resolved: `name` / `address` in the party table (or `seller.name` / `seller.address`), then the registry.
 
 ## Example
@@ -70,6 +74,8 @@ place_of_issue = "Gdańsk"
 vat_rate = "23"
 payment_days = 14
 bank_account = "PL61 1090 1014 0000 0712 1981 2874"
+bank_name = "mBank S.A."
+swift = "BREXPLPW"
 currency = "PLN"
 sale_date = "last_day_of_month"
 line_template = "Usługi za {month_name} {year}"
@@ -82,9 +88,22 @@ reset = "monthly"
 [registry]
 cache_ttl = 30
 
+[items.dev]
+name = "Programming services {month_name} {year}"
+unit = "h"
+unit_price = "120,00"
+quantity = "160"
+index = "DEV-01"
+
+[items.support]
+name = "Support {month_name_en} {year}"
+unit_price = "50,00"
+vat_rate = "8"
+
 [parties.acme]
 nip = "5252248481"
 payment_days = 30
+items = ["dev", "support"]
 
 [parties.berlin]
 vat_id = "DE123456789"
@@ -98,6 +117,8 @@ currency = "EUR"
 - **`defaults.payment_days`**: a due date is always written; with nothing set it is 14 days after the issue date.
 - **`defaults.bank_account`** is required to issue an invoice. A Polish IBAN is written on the invoice as 26 digits.
 - **`seller.name` and `seller.address`** are needed only when the White List has none for you; otherwise leave them out and the registry values are used.
+- **`items.<key>`**: quote `unit_price` and `quantity` (`unit_price = "120,00"`); a TOML number is refused when the file is read. The price is in the invoice currency and is never converted: an item with `currency = "PLN"` cannot go on a EUR invoice. `gtin` needs a valid GS1 check digit. `name` may use the tokens of `line_template`.
+- **`bank_name` and `swift`** are written to the invoice next to the account. `swift` is normalised (spaces removed, upper case). A SWIFT whose country differs from the account's country is only a warning.
 - **`parties.<alias>`**: set exactly one of `nip` and `vat_id`. The alias is 1 to 32 characters: lower-case letters, digits, `_` and `-`, starting with a letter or a digit.
 
 

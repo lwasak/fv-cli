@@ -165,9 +165,11 @@ func (s *session) resolveSettings(rc *runContext, f issueFlags) (issueSettings, 
 	if out.unit, err = str("unit", defaultUnit); err != nil {
 		return out, err
 	}
-	if out.bank, err = str("bank_account", ""); err != nil {
+	bank, acctLayer, _, err := r.String("bank_account")
+	if err != nil {
 		return out, err
 	}
+	out.bank = bank
 	if out.bank == "" {
 		return out, errors.New("no bank account: set bank_account in [defaults] or [parties." + f.to + "]")
 	}
@@ -177,7 +179,6 @@ func (s *session) resolveSettings(rc *runContext, f issueFlags) (issueSettings, 
 	out.bank = strings.ToUpper(strings.ReplaceAll(out.bank, " ", ""))
 	// bank_name and swift describe the account: they come from the layer the account came
 	// from, never from another one, or the invoice would name the wrong bank.
-	_, acctLayer, _, _ := r.String("bank_account")
 	if out.bankName, _, err = r.StringFrom("bank_name", acctLayer); err != nil {
 		return out, err
 	}

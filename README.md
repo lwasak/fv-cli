@@ -10,6 +10,7 @@ Command-line tool for issuing Polish VAT invoices (FA(3)) and sending them to KS
 - Buyers are looked up by NIP (MF White List) or EU VAT ID (VIES) and cached; the VAT status is checked and shown on every invoice.
 - Exact money arithmetic in grosze (no floating point); Polish and English decimal input, with documented shell quoting.
 - Foreign currency invoices with the NBP exchange rate.
+- Several lines per invoice, saved items you bill by key (`--item dev=160`), ad-hoc lines (`--line`), and the bank name and SWIFT written next to the account.
 - FA(3) XML generated and validated against the official schema.
 - KSeF login with a certificate (XAdES), session encryption, one-shot send with a 120 s verdict poll, UPO stored with the invoice.
 - Safe by default: nothing is sent without confirmation; PROD needs a typed `PRODUCTION`; an unknown outcome blocks a resend until `fv status` resolves it.
@@ -206,6 +207,21 @@ Nothing was sent to KSeF. To send: fv send FV/2026/10/001
 ```
 
 Look at it with `fv show FV/2026/10/001`, or at the exact XML that would be sent with `fv show FV/2026/10/001 --xml`.
+
+**Bill the same things every month.** Save what you sell as an item in `config.toml` (quote the price), then bill it by key, with a quantity if you like:
+
+```toml
+[items.dev]
+name = "Programming services {month_name_en} {year}"
+unit = "h"
+unit_price = "120,00"
+```
+
+```sh
+fv issue --to acme --item dev=160
+```
+
+Add more `--item` or `--line "desc=Hosting; price=19,99"` flags for more lines, or list the items in `[parties.acme]` (`items = ["dev"]`) and run `fv issue --to acme` with nothing else. See [docs/workflow.md](docs/workflow.md#several-lines-and-saved-items).
 
 ### 7. Send it to DEMO
 

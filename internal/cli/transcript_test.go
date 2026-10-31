@@ -41,7 +41,17 @@ var guideSteps = []transcriptStep{
 	{name: "list", args: []string{"list"}},
 	{name: "show-purchase", args: []string{"show", "5252248481-20261012-0200002AF62A-20"}},
 	{name: "issue-eur", args: []string{"issue", "--to", "acme", "--net", "2000", "--currency", "EUR"}},
+	{name: "issue-multi", args: []string{"issue", "--to", "acme", "--item", "dev=40", "--line", "desc=Hosting {month_name_en} {year}; price=19,99; unit=mies."}},
 }
+
+// guideItems is the saved item the multi-line step of the guide bills; docs/workflow.md shows it.
+const guideItems = `
+[items.dev]
+name = "Usługi programistyczne {month_name} {year}"
+unit = "godz."
+unit_price = "120,00"
+index = "DEV-01"
+`
 
 // shellWord quotes an argument the way the guide writes it: amounts and anything with a
 // comma or a space in double quotes.
@@ -57,7 +67,7 @@ func shellWord(a string) string {
 // the command line, then stdout and stderr interleaved, then the typed answers.
 func runGuideScenario(t *testing.T) map[string]string {
 	t.Helper()
-	fx := &sendFx{partyFx: newPartyFx(t, issueConfig), fake: ksefake.New(t), backend: &memBackend{}, rnd: &seqRand{}}
+	fx := &sendFx{partyFx: newPartyFx(t, issueConfig+guideItems), fake: ksefake.New(t), backend: &memBackend{}, rnd: &seqRand{}}
 	clock := func() time.Time { return fx.now }
 	sym := credtest.New(t, credtest.Spec{RSA: true})
 	fx.on = fx.fake.EnableOnline(ksefake.OnlineOptions{
