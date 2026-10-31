@@ -13,6 +13,7 @@ Command-line tool for issuing Polish VAT invoices (FA(3)) and sending them to KS
 - FA(3) XML generated and validated against the official schema.
 - KSeF login with a certificate (XAdES), session encryption, one-shot send with a 120 s verdict poll, UPO stored with the invoice.
 - Safe by default: nothing is sent without confirmation; PROD needs a typed `PRODUCTION`; an unknown outcome blocks a resend until `fv status` resolves it.
+- `fv list` and `fv show` cover sales and purchases from KSeF, not only what you issued with fv.
 - Local archive with sequential numbering under an OS lock, immutable sent XML with a stored SHA-256.
 - Secrets in the OS keyring (Windows Credential Manager, macOS Keychain, Secret Service), redacted from logs and output.
 - Documented exit codes for scripting; every command has `--help` with examples.
@@ -207,9 +208,21 @@ KSeF number: 5555555555-20261031-0100001AF62C-27
 UPO:         stored (upo.xml)
 ```
 
-The KSeF number is the invoice's permanent identifier and the UPO is KSeF's official confirmation of receipt; both are kept in the local archive. On TEST and DEMO, `--yes` skips the question (for scripts). If the answer was lost (exit code 5), `fv status FV/2026/10/001` asks KSeF and settles it. `fv list` shows all invoices and their states.
+The KSeF number is the invoice's permanent identifier and the UPO is KSeF's official confirmation of receipt; both are kept in the local archive. On TEST and DEMO, `--yes` skips the question (for scripts). If the answer was lost (exit code 5), `fv status FV/2026/10/001` asks KSeF and settles it. See the next step for `fv list`.
 
-### 8. Go to production
+### 8. List and show invoices
+
+```sh
+fv list
+fv list --month 2026-10 --as buyer
+fv show 5555555555-20261031-0100001AF62C-27
+```
+
+`fv list` shows the invoices of the selected environment for the **last three months including the current one**: your sales and your purchases, read from KSeF and merged with your archive, so an invoice you sent with fv appears once with its state and an invoice that exists only in KSeF has the state `ksef`. `--from` and `--to` (`YYYY-MM-DD`) or `--month YYYY-MM` choose the issue dates, `--as seller` or `--as buyer` limits it to sales or purchases, `--offline` asks nothing and shows the archive and the rows cached earlier, and `--wide` adds full names, NIPs and KSeF numbers. KSeF limits metadata queries to 20 per hour; see [Troubleshooting](docs/troubleshooting.md#fv-list-says-the-ksef-limit-was-reached-or-shows-only-some-invoices).
+
+`fv show` works for **any invoice `fv list` shows**: give its KSeF number, or its invoice number if only one listed invoice has it. An invoice that is not stored yet is downloaded once and kept in a local cache; `--xml` prints it exactly as KSeF served it.
+
+### 9. Go to production
 
 1. Get a PROD certificate from https://ap.ksef.mf.gov.pl, the same way as in step 2.
 2. Import it: `fv --env prod init`. Answer `N` to the overwrite question and `y` to the import question.
@@ -222,7 +235,7 @@ fv --env prod ksef check
 4. Issue and send with `--env prod`. A PROD send is legally binding and needs you to type `PRODUCTION`; `--yes` never skips that.
 5. When you are ready to work in production by default, set `environment = "prod"` under `[ksef]` in the config. Numbering, archive and credentials are separate per environment, so DEMO drafts never go to PROD.
 
-### 9. Where to go next
+### 10. Where to go next
 
 - [docs/workflow.md](docs/workflow.md): issue, show, send and status in detail, sale and due dates, one-step `issue --send`.
 - [docs/config-reference.md](docs/config-reference.md): every config key, default and file location.

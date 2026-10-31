@@ -18,6 +18,7 @@ fv handles two things worth stealing: the **private key** that logs in to KSeF o
 - fv **refuses to read a key file** that others can read.
 - Files are written atomically (a temporary file, then a rename), so a crash leaves either the old file or the new one, never half of one.
 - `invoice.xml` becomes immutable when a send starts, and its SHA-256 is checked before every use. State changes are recorded with their history.
+- The KSeF cache (`ksef-cache/`, see [the archive](numbering-and-archive.md#the-ksef-cache)) holds invoice data of **your counterparties**, such as names, NIPs and amounts. It is user-only like everything else, and each cached XML is checked against the hash KSeF reported before `fv show` uses it; a changed file is refused.
 - Numbers are taken under an OS lock, so two runs can never issue the same number.
 
 ### Transport
@@ -56,7 +57,7 @@ fv cannot protect what is outside it. These are yours.
 - fv trusts your user account. Anyone who can run commands as you can run fv as you. Lock your screen, and do not share the account.
 - Use **full-disk encryption** (BitLocker, FileVault, LUKS). The archive and the key are only as private as the disk.
 - Keep the OS and the keyring service updated. The keyring is unlocked while you are logged in, and fv can read it then.
-- Protect and **back up** the data folder. The archive is your record of what you issued, and it is **not encrypted**: it holds names and addresses of your buyers (personal data). Treat backups accordingly.
+- Protect and **back up** the data folder. The archive is your record of what you issued, and it is **not encrypted**: it holds names and addresses of your buyers (personal data), and the KSeF cache adds those of your suppliers. Treat backups accordingly.
 - Do not edit files in the data folder by hand, and do not run untrusted programs as your user.
 
 ### Production

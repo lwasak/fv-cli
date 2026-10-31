@@ -64,6 +64,7 @@ void-draft  (a discarded draft whose number could not be released)
 | `rejected` | KSeF refused it; it is not in KSeF. May only be discarded. |
 | `unknown` | The outcome is not known (no answer, timeout, still processing). `fv status` resolves it. |
 | `void-draft` | Discarded, number kept for the record. |
+| `ksef` | Shown only by `fv list`: an invoice that exists in KSeF but not in the archive, such as a purchase. It has no state of its own in fv. |
 
 A persisted `sending` state is treated as `unknown` on the next run, because a crash cannot write `unknown`. `fv send` refuses both; `fv status` resolves both. From `unknown`, an invoice goes back to `draft` only when KSeF provably never received it.
 
@@ -87,6 +88,12 @@ fv keeps everything in its **data folder** (see [where fv keeps its files](confi
           upo.xml             the UPO, once KSeF accepted the invoice
     demo/
     prod/
+  ksef-cache/
+    test/
+      5260250274/
+        index.json            metadata of the invoices fv list received from KSeF
+        xml/                  invoices downloaded by fv show, one <KSeF number>.xml each
+        cache.lock
   ksef/
     test/
       public-key-certificates.json   cache of KSeF's public keys
@@ -105,5 +112,9 @@ What each file means:
 - **`parties.json`**: the registry cache; safe to delete (fv fetches again).
 - **`fv.log`**: what fv did, with every secret removed. Useful when something fails; see [Troubleshooting](troubleshooting.md).
 - **`ksef/<env>/<nip>/`**: your encrypted key and certificate. See [Security](security.md).
+
+### The KSeF cache
+
+`ksef-cache/<env>/<nip>/` is a copy of what KSeF told fv, separate from the archive of your own invoices. `fv list` stores the metadata of every invoice it receives in `index.json`; `fv show` stores the XML of each invoice it downloads in `xml/<KSeF number>.xml`, with the SHA-256 KSeF reported. Entries are never deleted, so `fv list --offline` and `fv show <number>` keep working without KSeF. Each XML is verified against its hash on every read, and a file that no longer matches is refused rather than shown. The cache is safe to delete; fv fetches again. It is the only place the invoices of your suppliers are kept, and it holds their names, NIPs and amounts.
 
 The archive is **not encrypted** and holds your buyers' names and addresses. Back it up, and protect the backup like the machine itself. Never copy or move files in `invoices/` by hand while fv runs; use `fv discard` to drop a draft.

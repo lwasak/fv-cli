@@ -95,6 +95,19 @@ Exit code 3 means the credential or the login failed. The message says which:
 | An error from KSeF at login (the message is KSeF's) | KSeF refused the login. For a PESEL certificate, the person may lack the permission to act for this NIP. For a new certificate, it may not be active yet. Check the environment too: `fv --env demo ksef check`. |
 | `a KSeF Offline certificate cannot be used to log in` | You imported the wrong certificate type. Get an Authentication certificate. |
 
+## fv list says the KSeF limit was reached, or shows only some invoices
+
+KSeF allows **20 metadata queries per hour** per context, and a long range needs one query per 92 days and per direction (sales and purchases). One run makes at most 10. When the limit is reached (HTTP 429) or the budget is spent, fv prints the rows it has, says so on stderr and exits 1; nothing is lost, the rows already received are cached.
+
+- Wait for the time KSeF names (fv prints it when KSeF gives one) and run `fv list` again.
+- Ask for less: `fv list --as buyer` or `--as seller` makes half the queries, and `--month` or a short `--from`/`--to` fewer windows.
+- `fv list --offline` shows the archive and what is cached without asking KSeF, and `fv show` of an invoice you already showed never asks either.
+- A result of more than 10 000 invoices in one window is truncated by KSeF; fv narrows the range automatically and exits 1 only if it cannot.
+
+**Exit 1 with `403` on list or show.** The certificate may not carry the `InvoiceRead` permission for this NIP. In the KSeF application, grant the permission to the person or certificate you log in with. Sales you sent with fv still list from the archive.
+
+**`fv show` says KSeF has not made the invoice downloadable yet** (KSeF error 21165). The invoice was accepted a moment ago and is not available yet. Run it again in a minute. **Error 21164** (no such invoice) means this NIP cannot see that KSeF number in this environment; check `--env`.
+
 ## Expired certificates
 
 fv refuses an expired certificate **before it sends any request**, so nothing half-sent can result. From 30 days before expiry, `fv ksef check`, `fv config validate` and every login print `certificate expires in N days (...)`.

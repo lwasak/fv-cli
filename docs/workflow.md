@@ -155,7 +155,46 @@ To get the exact XML that will be sent, byte for byte (fv checks it against the 
 fv show FV/2026/10/001 --xml > invoice.xml
 ```
 
-`fv show` looks for the number in the selected environment first and then in the others. It never contacts KSeF.
+For an archived invoice, `fv show` looks for the number in the selected environment first and then in the others, and sends nothing to KSeF.
+
+### Show an invoice you did not issue
+
+`fv show` also reads any invoice that [`fv list`](#list) shows, a purchase for example. Give its KSeF number, or its invoice number when only one listed invoice has it:
+
+<!-- transcript:show-purchase -->
+```text
+$ fv show 5252248481-20261012-0200002AF62A-20
+ENVIRONMENT: TEST
+
+Invoice:   FZ/2026/118   [purchase, KSeF]
+Kind:      VAT
+Issued:    2026-10-12
+Currency:  PLN
+
+Seller:    BIURO SERWIS SPÓŁKA Z O.O.
+           ul. Fabryczna 1, 00-001 Warszawa
+           NIP 5252248481
+
+Buyer:     MOJA FIRMA JANUSZ NOWAK
+           ul. Kupiecka 2, 80-001 Gdańsk
+           NIP 5260250274
+
+  No        Description  Qty  Unit    Price    Value  Rate
+   1  Materiały biurowe    1  szt.  1200,00  1200,00   23%
+
+       Rate      Net     VAT    Gross
+  23% / 22%  1200,00  276,00  1476,00
+Total:     1476,00 PLN
+
+Payment:   transfer
+Due:       2026-10-26
+Account:   PL61 1090 1014 0000 0712 1981 2874
+
+Source:    KSeF, downloaded 2026-10-31 10:00 (just now, SHA-256 checked)
+KSeF no.:  5252248481-20261012-0200002AF62A-20
+```
+
+The first time, fv logs in to KSeF and downloads that one invoice (one request, not a query); it keeps the XML in a local cache and checks its SHA-256 every time it is read, so the next `fv show` makes no request. `--xml` prints the downloaded XML exactly as KSeF served it. If two listed invoices share a number, fv exits 1 and lists their KSeF numbers; pass one of them. A number fv has never listed is refused with a hint to run `fv list` over its issue date. If KSeF answers that the invoice is not downloadable yet (it was accepted a moment ago), retry in a minute. Only FA(2) and FA(3) invoices are shown in readable form; for another form fv prints what the metadata knows and tells you to use `--xml`.
 
 ## 3. Send it
 
@@ -262,19 +301,31 @@ An accepted invoice that has no UPO stored (the fetch failed at send time) gets 
 ```powershell
 fv list
 fv list --month 2026-10
+fv list --from 2026-07-01 --to 2026-09-30 --as buyer
 fv --env prod list --month 2026-10
 ```
+
+`fv list` shows the invoices of the selected environment (`--env` or `ksef.environment`): the last three months including the current one by default, sales and purchases. The rows come from your archive and from KSeF (a metadata query for the sales and one for the purchases), merged so an invoice you sent with fv appears once, with fv's state. A row that exists only in KSeF has the state `ksef`; `DIR` says whether you are the seller or the buyer.
 
 <!-- transcript:list -->
 ```text
 $ fv list
 TEST: issue dates 2026-08-01 to 2026-10-31
-KSeF test: 1 invoice
-ISSUED      NUMBER          DIR   SELLER                  BUYER                   GROSS      CUR  STATE
-2026-10-31  FV/2026/10/001  sale  MOJA FIRMA JANUSZ NOW…  ACME SPÓŁKA Z OGRANIC…  10 455,53  PLN  accepted
+KSeF test: 2 invoices
+ISSUED      NUMBER          DIR       SELLER                  BUYER                   GROSS      CUR  STATE
+2026-10-12  FZ/2026/118     purchase  BIURO SERWIS SPÓŁKA Z…  MOJA FIRMA JANUSZ NOW…    1476,00  PLN  ksef
+2026-10-31  FV/2026/10/001  sale      MOJA FIRMA JANUSZ NOW…  ACME SPÓŁKA Z OGRANIC…  10 455,53  PLN  accepted
 ```
 
-Without `--env` every environment is listed. States: `reserved`, `draft`, `sending`, `accepted`, `rejected`, `unknown` and `void-draft` ([Numbering and archive](numbering-and-archive.md#states)).
+| Flag | Meaning |
+|---|---|
+| `--from`, `--to` | Issue dates, `YYYY-MM-DD`. Longer than 92 days takes several queries; `--to` is never later than today. |
+| `--month YYYY-MM` | One month. Not together with `--from` or `--to`. |
+| `--as seller\|buyer\|all` | Only sales, only purchases (one query less), or all (default). |
+| `--offline` | Send nothing; show the archive and the KSeF rows cached by earlier lists. |
+| `--wide` | Add full names, NIPs, the invoice kind and the KSeF number. |
+
+KSeF allows 20 metadata queries an hour and one run makes at most 10; if the limit is reached fv prints the rows it has and exits 1 ([Troubleshooting](troubleshooting.md#fv-list-says-the-ksef-limit-was-reached-or-shows-only-some-invoices)). Without a certificate for the environment the archive is listed and a note says so. States: `reserved`, `draft`, `sending`, `accepted`, `rejected`, `unknown`, `void-draft` and `ksef` ([Numbering and archive](numbering-and-archive.md#states)). Before the first `fv init` (no config file) `fv list` shows only the archive of all environments, with an ENV column.
 
 ## Environments and production safeguards
 

@@ -16,13 +16,17 @@ fv sets its process exit code so scripts can tell apart "fix your input", "try a
 
 | Command | Possible codes |
 |---|---|
-| `fv init`, `fv config validate`, `fv show`, `fv list`, `fv discard`, `fv version` | 0, 1 |
+| `fv init`, `fv config validate`, `fv discard`, `fv version` | 0, 1 |
+| `fv list` | 0, 1, 3 |
+| `fv show` | 0, 1, 3 |
 | `fv party add / show` | 0, 1, 2 |
 | `fv party refresh` | 0, 1, 2 (also when `--all` and some parties failed, and at the quota) |
 | `fv ksef check` | 0, 1, 3 |
 | `fv issue` | 0, 1, 2 (registry or NBP) |
 | `fv issue --send`, `fv send` | 0, 1, 2 (issue step only), 3, 4, 5, 10 |
 | `fv status` | 0, 1, 3, 4, 5 |
+
+`fv list` prints the rows it has even when KSeF could not be asked: exit 3 when the login or the credential failed, exit 1 when KSeF was unreachable, answered 5xx, 403 (the certificate lacks the InvoiceRead permission) or 429, or the per-run query budget ran out. A missing certificate is only a note (exit 0). `fv show` exits 3 when it needs a download and cannot log in, and 1 when the invoice is unknown, ambiguous, not yet downloadable or its cached copy fails the hash check.
 
 `fv status` exits 0 when it found the invoice accepted, when the invoice is a draft or a discarded draft (it only reports that), and when it put an invoice that KSeF never received back to `draft`. It exits 4 for a rejected invoice and 5 when the answer is still pending.
 
