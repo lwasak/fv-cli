@@ -126,3 +126,30 @@ func TestRenderKSeFInvoice_FactorAccountMarginAndRates(t *testing.T) {
 		t.Errorf("margin row:\n%s", out)
 	}
 }
+
+func renderGolden(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "fa3", "testdata", "golden", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := fa3.Parse(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var w bytes.Buffer
+	renderKSeFInvoice(&w, d, ksefcache.Entry{}, "5260250274-20260101-AAAAAAAAAAAA-AA", ksefNIP, config.EnvTest, true, previewOpts{})
+	return w.String()
+}
+
+func TestRenderKSeFInvoice_IndexColumnOnlyWhenPresent(t *testing.T) {
+	out := renderGolden(t, "multi.xml")
+	for _, want := range []string{"Index", "DEV-01", "BOOK-7", "mBank S.A.", "SWIFT BREXPLPW"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("multi lacks %q:\n%s", want, out)
+		}
+	}
+	if out := renderGolden(t, "rate23.xml"); strings.Contains(out, "Index") {
+		t.Errorf("no index in the document, no column:\n%s", out)
+	}
+}

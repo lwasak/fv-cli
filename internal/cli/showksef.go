@@ -339,7 +339,15 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 	gross := false
 	if len(d.Lines) > 0 {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-		_, _ = fmt.Fprintln(tw, "No\tDescription\tQty\tUnit\tPrice\tValue\tRate\t")
+		hasIndex := false
+		for _, l := range d.Lines {
+			hasIndex = hasIndex || l.Index != ""
+		}
+		if hasIndex {
+			_, _ = fmt.Fprintln(tw, "No\tIndex\tDescription\tQty\tUnit\tPrice\tValue\tRate\t")
+		} else {
+			_, _ = fmt.Fprintln(tw, "No\tDescription\tQty\tUnit\tPrice\tValue\tRate\t")
+		}
 		for _, l := range d.Lines {
 			desc := orDash(clean(l.Description))
 			if l.Before {
@@ -358,7 +366,11 @@ func renderKSeFInvoice(w io.Writer, d *fa3.Document, e ksefcache.Entry, ksefNo, 
 					gross = true
 				}
 			}
-			_, _ = fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t\n", l.No, desc, fmtDec(l.Qty, 0), orDash(clean(l.Unit)), price, value, kRate(l.Rate))
+			cols := fmt.Sprintf("%d\t", l.No)
+			if hasIndex {
+				cols += orDash(clean(l.Index)) + "\t"
+			}
+			_, _ = fmt.Fprintf(tw, "%s%s\t%s\t%s\t%s\t%s\t%s\t\n", cols, desc, fmtDec(l.Qty, 0), orDash(clean(l.Unit)), price, value, kRate(l.Rate))
 		}
 		_ = tw.Flush()
 		if gross {

@@ -67,6 +67,9 @@ func TestParse_RoundTripsEveryGolden(t *testing.T) {
 			}
 			for i, l := range in.Lines {
 				g := d.Lines[i]
+				if g.Index != l.Index || g.GTIN != l.GTIN || g.PKWiU != l.PKWiU {
+					t.Errorf("line %d identifiers = %q %q %q, want %q %q %q", i, g.Index, g.GTIN, g.PKWiU, l.Index, l.GTIN, l.PKWiU)
+				}
 				if g.No != i+1 || g.Description != l.Description || g.Unit != l.Unit || g.Qty != money.FormatQuantityXML(l.Qty) ||
 					g.UnitPrice != money.FormatXML(l.UnitPrice) || g.UnitPriceGross || g.Value != l.Net || g.ValueGross || !g.HasValue || g.Rate != l.Rate.Code {
 					t.Errorf("line %d = %+v", i, g)
@@ -90,6 +93,9 @@ func TestParse_RoundTripsEveryGolden(t *testing.T) {
 			if d.Payment.Method != "transfer" || len(d.Payment.Due) != 1 || d.Payment.Due[0].Date != date(in.DueDate) ||
 				len(d.Payment.Accounts) != 1 || !strings.HasSuffix(in.BankAccount, strings.Join(strings.Fields(d.Payment.Accounts[0].Number[len(d.Payment.Accounts[0].Number)-4:]), "")) {
 				t.Errorf("payment %+v", d.Payment)
+			}
+			if a := d.Payment.Accounts[0]; a.Bank != in.BankName || a.SWIFT != in.BankSWIFT {
+				t.Errorf("bank %q SWIFT %q, want %q %q", a.Bank, a.SWIFT, in.BankName, in.BankSWIFT)
 			}
 			if in.ExemptionBasis != "" && (!d.Flags.Exempt || len(d.Flags.ExemptionBasis) != 1 || d.Flags.ExemptionBasis[0] != in.ExemptionBasis) {
 				t.Errorf("flags %+v", d.Flags)

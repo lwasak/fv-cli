@@ -93,6 +93,8 @@ type DocLine struct {
 	Description string
 	Unit        string
 	Qty         string
+	// Index is Indeks, GTIN and PKWiU the product identifiers; each is empty when not given.
+	Index, GTIN, PKWiU string
 	// UnitPrice is P_9A (net) or P_9B (gross, UnitPriceGross true).
 	UnitPrice      string
 	UnitPriceGross bool
@@ -280,6 +282,9 @@ type xmlFa struct {
 		Nr     string `xml:"NrWierszaFa"`
 		P6A    string `xml:"P_6A"`
 		P7     string `xml:"P_7"`
+		Indeks string `xml:"Indeks"`
+		GTIN   string `xml:"GTIN"`
+		PKWiU  string `xml:"PKWiU"`
 		P8A    string `xml:"P_8A"`
 		P8B    string `xml:"P_8B"`
 		P9A    string `xml:"P_9A"`
@@ -394,6 +399,7 @@ func Parse(b []byte) (*Document, error) {
 
 	for i, w := range f.Wiersze {
 		l := DocLine{Description: strings.TrimSpace(w.P7), Unit: strings.TrimSpace(w.P8A), Qty: strings.TrimSpace(w.P8B),
+			Index: strings.TrimSpace(w.Indeks), GTIN: strings.TrimSpace(w.GTIN), PKWiU: strings.TrimSpace(w.PKWiU),
 			Discount: strings.TrimSpace(w.P10), ExchangeRate: strings.TrimSpace(w.Kurs), SaleDate: strings.TrimSpace(w.P6A),
 			Before: strings.TrimSpace(w.Przed) == "1"}
 		if n, err := strconv.Atoi(strings.TrimSpace(w.Nr)); err == nil {
