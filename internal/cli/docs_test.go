@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lwasak/fv-cli/internal/config"
+	"github.com/lwasak/fv-cli/internal/ksef"
 	"github.com/lwasak/fv-cli/internal/money"
 )
 
@@ -406,6 +407,24 @@ func TestDocs_LinksAndMarkdown(t *testing.T) {
 				if anchor != "" && !set[anchor] {
 					t.Errorf("docs/%s: link %q: %s has no heading with that anchor", f, target, file)
 				}
+			}
+		}
+	}
+}
+
+func TestDocs_KSeFNumbersHaveAValidChecksum(t *testing.T) {
+	files := []string{"../../README.md"}
+	for _, f := range guideFiles {
+		files = append(files, filepath.Join(docsDir, f))
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, n := range ksefNumberToken.FindAllString(string(b), -1) {
+			if err := ksef.ValidateKSeFNumber(n); err != nil {
+				t.Errorf("%s: %s: %v", filepath.Base(f), n, err)
 			}
 		}
 	}

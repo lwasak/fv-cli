@@ -24,7 +24,7 @@ func newShowCmd(s *session) *cobra.Command {
 			"Any invoice listed by fv list can be shown, including purchases: give its KSeF number, or its invoice number when only one listed invoice has it. " +
 			"A KSeF invoice that is not stored yet is downloaded once (one login, one request) and kept in a local cache, hash-checked on every read; show never runs a metadata query. " +
 			"An archived invoice is not sent anywhere.",
-		Example: "  fv show FV/2026/10/001\n  fv show FV/2026/10/001 --xml > invoice.xml\n  fv show 5260250274-20261031-ABCDEF123456-AB\n  fv --env demo show FV/2026/10/001",
+		Example: "  fv show FV/2026/10/001\n  fv show FV/2026/10/001 --xml > invoice.xml\n  fv show 5252248481-20261012-0200002AF62A-20\n  fv --env demo show FV/2026/10/001",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			xml, _ := cmd.Flags().GetBool("xml")
@@ -42,7 +42,10 @@ func (s *session) runShow(cmd *cobra.Command, arg string, asXML bool) error {
 	}
 	st := s.store(rc)
 	ksefNo := ""
-	if ksef.ValidateKSeFNumber(arg) == nil {
+	if verr := ksef.ValidateKSeFNumber(arg); verr != nil && ksef.HasKSeFNumberShape(arg) {
+		// it has the shape of a KSeF number, so it is one with a typo, not an invoice number
+		return fmt.Errorf("%w; check the number for a typo", verr)
+	} else if verr == nil {
 		ksefNo = arg
 		m, err := st.FindByKSeFNumber(rc.Env, arg)
 		switch {

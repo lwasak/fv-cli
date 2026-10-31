@@ -177,3 +177,20 @@ func TestShow_DownloadThatDiffersFromTheListedHashIsRefused(t *testing.T) {
 		t.Errorf("a forged body was cached: %v", err)
 	}
 }
+
+func TestShow_KSeFNumberWithABadChecksumIsSaidDirectly(t *testing.T) {
+	fx := newListFx(t)
+	before := len(fx.fake.Requests())
+	// the number of the purchase with its last check digit changed
+	bad := fx.purchaseNo[:len(fx.purchaseNo)-1] + "0"
+	if bad == fx.purchaseNo {
+		bad = fx.purchaseNo[:len(fx.purchaseNo)-1] + "1"
+	}
+	code, out, errs := fx.run("show", bad)
+	if code != 1 || out != "" || !strings.Contains(errs, "wrong checksum") || !strings.Contains(errs, "typo") || strings.Contains(errs, "not in the archive") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if len(fx.fake.Requests()) != before {
+		t.Errorf("show sent %d requests", len(fx.fake.Requests())-before)
+	}
+}

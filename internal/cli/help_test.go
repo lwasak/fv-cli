@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/lwasak/fv-cli/internal/ksef"
 )
 
 func walk(cmd *cobra.Command, fn func(*cobra.Command)) {
@@ -46,4 +49,19 @@ func TestHelp_EveryFlagHasUsage(t *testing.T) {
 			t.Errorf("root is missing global flag --%s", name)
 		}
 	}
+}
+
+var ksefNumberToken = regexp.MustCompile(`\b\d{10}-\d{8}-[0-9A-Fa-f]{6}-?[0-9A-Fa-f]{6}-[0-9A-Fa-f]{2}\b`)
+
+func TestHelp_KSeFNumbersInExamplesHaveAValidChecksum(t *testing.T) {
+	root := NewRootCmd(DefaultDeps())
+	walk(root, func(c *cobra.Command) {
+		for _, text := range []string{c.Long, c.Example} {
+			for _, n := range ksefNumberToken.FindAllString(text, -1) {
+				if err := ksef.ValidateKSeFNumber(n); err != nil {
+					t.Errorf("%s: example %s: %v", c.CommandPath(), n, err)
+				}
+			}
+		}
+	})
 }

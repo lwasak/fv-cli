@@ -14,6 +14,10 @@ var ErrBadKSeFNumber = errors.New("invalid KSeF number")
 
 var ksefNumberRE = regexp.MustCompile(`^([1-9](\d[1-9]|[1-9]\d)\d{7})-(20[2-9][0-9]|2[1-9]\d{2}|[3-9]\d{3})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])-([0-9A-F]{6})-?([0-9A-F]{6})-([0-9A-F]{2})$`)
 
+// HasKSeFNumberShape reports whether s matches the KSeF number pattern, whatever its check
+// digits are. A string with the shape that fails ValidateKSeFNumber is a mistyped KSeF number.
+func HasKSeFNumberShape(s string) bool { return ksefNumberRE.MatchString(s) }
+
 // ValidateKSeFNumber checks s against the TNumerKSeF pattern and, for the 35 character form,
 // the CRC-8 check digits (polynomial 0x07, initial value 0) over the first 32 characters.
 func ValidateKSeFNumber(s string) error {

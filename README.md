@@ -204,7 +204,7 @@ fv send FV/2026/10/001
 ```text
 Send invoice FV/2026/10/001 to KSeF DEMO? [y/N] y
 Sent FV/2026/10/001 to KSeF DEMO.
-KSeF number: 5555555555-20261031-0100001AF62C-27
+KSeF number: 5260250274-20261031-0100001AF62C-27
 UPO:         stored (upo.xml)
 ```
 
@@ -215,7 +215,7 @@ The KSeF number is the invoice's permanent identifier and the UPO is KSeF's offi
 ```sh
 fv list
 fv list --month 2026-10 --as buyer
-fv show 5555555555-20261031-0100001AF62C-27
+fv show 5260250274-20261031-0100001AF62C-27
 ```
 
 `fv list` shows the invoices of the selected environment for the **last three months including the current one**: your sales and your purchases, read from KSeF and merged with your archive, so an invoice you sent with fv appears once with its state and an invoice that exists only in KSeF has the state `ksef`. `--from` and `--to` (`YYYY-MM-DD`) or `--month YYYY-MM` choose the issue dates, `--as seller` or `--as buyer` limits it to sales or purchases, `--offline` asks nothing and shows the archive and the rows cached earlier, and `--wide` adds full names, NIPs and KSeF numbers. KSeF limits metadata queries to 20 per hour; see [Troubleshooting](docs/troubleshooting.md#fv-list-says-the-ksef-limit-was-reached-or-shows-only-some-invoices).
