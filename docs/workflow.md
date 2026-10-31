@@ -268,8 +268,10 @@ fv --env prod list --month 2026-10
 <!-- transcript:list -->
 ```text
 $ fv list
-NUMBER          ENV   STATE     ISSUED      GROSS      CUR  KSEF-NUMBER
-FV/2026/10/001  test  accepted  2026-10-31  10 455,53  PLN  5260250274-20261031-0100001AF62C-27
+TEST: issue dates 2026-08-01 to 2026-10-31
+KSeF test: 1 invoice
+ISSUED      NUMBER          DIR   SELLER                  BUYER                   GROSS      CUR  STATE
+2026-10-31  FV/2026/10/001  sale  MOJA FIRMA JANUSZ NOW…  ACME SPÓŁKA Z OGRANIC…  10 455,53  PLN  accepted
 ```
 
 Without `--env` every environment is listed. States: `reserved`, `draft`, `sending`, `accepted`, `rejected`, `unknown` and `void-draft` ([Numbering and archive](numbering-and-archive.md#states)).

@@ -70,6 +70,7 @@ type sendFx struct {
 	*partyFx
 	fake    *ksefake.Fake
 	on      *ksefake.Online
+	q       *ksefake.Query
 	backend *memBackend
 	rnd     *seqRand
 
@@ -95,13 +96,14 @@ func newSendFx(t *testing.T, pre func(*ksefake.Fake)) *sendFx {
 	fx.on = fx.fake.EnableOnline(ksefake.OnlineOptions{
 		Key: sym.Key.(*rsa.PrivateKey), CertDER: sym.DER, Bearer: ksefAccessTok, NIP: ksefNIP,
 	})
+	fx.q = fx.fake.EnableQuery(ksefake.QueryOptions{NIP: ksefNIP, Bearer: ksefAccessTok, Online: fx.on})
 	fx.fake.Respond("POST", "/auth/challenge", 200, `{"challenge":"20261030-CR-SEND","timestamp":"2026-10-30T12:00:00Z","timestampMs":1}`)
 	fx.fake.Respond("POST", "/auth/xades-signature", 202, `{"referenceNumber":"REF-1","authenticationToken":{"token":"`+ksefAuthTok+`","validUntil":"2027-10-30T12:10:00Z"}}`)
 	fx.fake.Respond("GET", "/auth/REF-1", 200, `{"status":{"code":200,"description":"ok"}}`)
 	fx.fake.Respond("POST", "/auth/token/redeem", 200, `{"accessToken":{"token":"`+ksefAccessTok+`","validUntil":"2027-10-30T12:15:00Z"},"refreshToken":{"token":"`+ksefRefresh+`","validUntil":"2027-11-30T12:00:00Z"}}`)
 	fx.importCred(config.EnvTest)
 	t.Cleanup(func() {
-		if v := fx.on.Violations(); len(v) > 0 {
+		if v := append(fx.on.Violations(), fx.q.Violations()...); len(v) > 0 {
 			t.Errorf("fv made protocol errors against KSeF: %v", v)
 		}
 	})
@@ -201,7 +203,7 @@ func TestNoSend_ZeroKSeFRequests(t *testing.T) {
 	fx := newSendFx(t, nil)
 	fx.issue()
 	for _, args := range [][]string{
-		{"show", sendNum}, {"show", sendNum, "--xml"}, {"list"}, {"list", "--env", "test"},
+		{"show", sendNum}, {"show", sendNum, "--xml"}, {"list", "--offline"}, {"list", "--offline", "--env", "test"},
 		{"status", sendNum}, {"discard", sendNum},
 	} {
 		if code, _, errs := fx.run(args...); code != 0 {

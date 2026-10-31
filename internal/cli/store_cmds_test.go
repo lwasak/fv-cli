@@ -99,31 +99,40 @@ func TestList_FilterMonthEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No --env lists every environment, even though the config default is test.
+	// Without flags: the environment in use (test, from the config) and the default range
+	// (August to October), so the November draft and the prod invoice are not listed. No
+	// certificate is imported, so KSeF is not asked and the command still succeeds.
 	code, out, errs := e.run("list")
 	if code != 0 {
 		t.Fatalf("code %d %s", code, errs)
 	}
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if len(lines) != 4 {
+	if len(lines) != 2 {
 		t.Fatalf("lines = %q", lines)
 	}
-	if f := strings.Fields(lines[0]); strings.Join(f, " ") != "NUMBER ENV STATE ISSUED GROSS CUR KSEF-NUMBER" {
+	if f := strings.Fields(lines[0]); strings.Join(f, " ") != "ISSUED NUMBER DIR SELLER BUYER GROSS CUR STATE" {
 		t.Errorf("header = %q", lines[0])
 	}
-	if f := strings.Fields(lines[1]); strings.Join(f, " ") != "FV/2026/10/001 prod draft 2026-10-03 1,00 PLN -" {
-		t.Errorf("row1 = %q", lines[1])
+	if f := strings.Fields(lines[1]); strings.Join(f, " ") != "2026-10-02 FV/2026/10/001 sale - - 1230,00 PLN accepted" {
+		t.Errorf("row = %q", lines[1])
 	}
-	if f := strings.Fields(lines[2]); strings.Join(f, " ") != "FV/2026/10/001 test accepted 2026-10-02 1230,00 PLN 1234563218-20261002-ABC-01" {
-		t.Errorf("row2 = %q", lines[2])
-	}
-	if !strings.HasPrefix(lines[3], "FV/2026/11/001") {
-		t.Errorf("row3 = %q", lines[3])
+	for _, want := range []string{"TEST: issue dates 2026-08-01 to 2026-10-31", "no certificate for test"} {
+		if !strings.Contains(errs, want) {
+			t.Errorf("stderr lacks %q: %q", want, errs)
+		}
 	}
 
-	_, out, _ = e.run("--env", "test", "list", "--month", "2026-10")
-	if n := strings.Count(out, "\n"); n != 2 || !strings.Contains(out, "accepted") {
-		t.Errorf("test+month out = %q", out)
+	_, out, _ = e.run("list", "--from", "2026-10-01", "--to", "2026-11-30", "--wide")
+	if n := strings.Count(out, "\n"); n != 3 || !strings.Contains(out, "1234563218-20261002-ABC-01") || !strings.Contains(out, "KSEF-NUMBER") {
+		t.Errorf("wide out = %q", out)
+	}
+	_, out, _ = e.run("--env", "prod", "list")
+	if n := strings.Count(out, "\n"); n != 2 || strings.Contains(out, "accepted") || !strings.Contains(out, "2026-10-03") {
+		t.Errorf("prod out = %q", out)
+	}
+	_, out, _ = e.run("list", "--month", "2026-10")
+	if n := strings.Count(out, "\n"); n != 2 {
+		t.Errorf("month out = %q", out)
 	}
 	_, out, _ = e.run("list", "--month", "2026-12")
 	if strings.TrimSpace(out) != "no invoices" {
@@ -132,8 +141,38 @@ func TestList_FilterMonthEnv(t *testing.T) {
 	if code, _, errs := e.run("list", "--month", "2026-13"); code != 1 || !strings.Contains(errs, "YYYY-MM") {
 		t.Errorf("bad month: %d %q", code, errs)
 	}
+	if code, _, errs := e.run("list", "--month", "2026-10", "--from", "2026-10-01"); code != 1 || !strings.Contains(errs, "--month cannot be combined") {
+		t.Errorf("month and from: %d %q", code, errs)
+	}
+	if code, _, errs := e.run("list", "--as", "everyone"); code != 1 || !strings.Contains(errs, "seller, buyer or all") {
+		t.Errorf("bad --as: %d %q", code, errs)
+	}
 	if code, _, _ := e.run("--env", "staging", "list"); code != 1 {
 		t.Errorf("bad env: %d", code)
+	}
+}
+
+func TestList_WithoutConfigListsTheArchiveOfEveryEnvironment(t *testing.T) {
+	e := newStoreEnv(t)
+	e.draft(config.EnvTest, "2026-10-02", 123000, "PLN")
+	e.draft(config.EnvProd, "2026-10-03", 100, "PLN")
+	if err := os.Remove(e.cfg); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := e.run("list")
+	if code != 0 {
+		t.Fatalf("code %d %s", code, errs)
+	}
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 3 || !strings.Contains(lines[0], "ENV") || !strings.Contains(lines[1], "prod") || !strings.Contains(lines[2], "test") {
+		t.Errorf("out = %q", out)
+	}
+	if !strings.Contains(errs, "no config file") || !strings.Contains(errs, "fv init") {
+		t.Errorf("stderr = %q", errs)
+	}
+	// a range wider than the KSeF limit is fine here: nothing is sent to KSeF
+	if code, _, errs := e.run("list", "--from", "2020-01-01"); code != 0 {
+		t.Errorf("wide range: %d %s", code, errs)
 	}
 }
 

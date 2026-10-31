@@ -62,6 +62,7 @@ func runGuideScenario(t *testing.T) map[string]string {
 	fx.on = fx.fake.EnableOnline(ksefake.OnlineOptions{
 		Key: sym.Key.(*rsa.PrivateKey), CertDER: sym.DER, Bearer: ksefAccessTok, NIP: ksefNIP, Now: clock,
 	})
+	fx.q = fx.fake.EnableQuery(ksefake.QueryOptions{NIP: ksefNIP, Bearer: ksefAccessTok, Online: fx.on, Now: clock})
 	fx.fake.Respond("POST", "/auth/challenge", 200, `{"challenge":"20261031-CR-GUIDE","timestamp":"2026-10-31T09:00:00Z","timestampMs":1}`)
 	fx.fake.Respond("POST", "/auth/xades-signature", 202, `{"referenceNumber":"REF-1","authenticationToken":{"token":"`+ksefAuthTok+`","validUntil":"2027-10-31T09:10:00Z"}}`)
 	fx.fake.Respond("GET", "/auth/REF-1", 200, `{"status":{"code":200,"description":"ok"}}`)
