@@ -312,6 +312,27 @@ func (s *Store) Load(env config.Env, number string) (*Meta, error) {
 	return readMeta(dir)
 }
 
+// FindByKSeFNumber returns the invoice of env that KSeF numbered ksefNumber, by scanning
+// the archive. ErrNotFound when there is none.
+func (s *Store) FindByKSeFNumber(env config.Env, ksefNumber string) (*Meta, error) {
+	if err := checkEnv(env); err != nil {
+		return nil, err
+	}
+	if ksefNumber == "" {
+		return nil, fmt.Errorf("%w: no KSeF number given", ErrNotFound)
+	}
+	metas, _, err := s.ListWithWarnings(Filter{Env: &env})
+	if err != nil {
+		return nil, err
+	}
+	for i := range metas {
+		if metas[i].KSeF != nil && metas[i].KSeF.KSeFNumber == ksefNumber {
+			return &metas[i], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: KSeF number %s in %s", ErrNotFound, ksefNumber, env)
+}
+
 // Locate finds number in prefer first, then in the other environments. When prefer does
 // not hold it and several other environments do, the error lists them.
 func (s *Store) Locate(number string, prefer config.Env) (*Meta, error) {
@@ -577,10 +598,13 @@ func (s *Store) Discard(env config.Env, number string) (DiscardResult, error) {
 }
 
 // Filter narrows List. A nil Env means all environments; Month is YYYY-MM of the issue
-// date, or empty.
+// date, or empty. From and To (YYYY-MM-DD, inclusive, either may be empty) bound the issue
+// date.
 type Filter struct {
 	Env   *config.Env
 	Month string
+	From  string
+	To    string
 }
 
 // List returns the archived invoices sorted by environment, issue date and sequence.
@@ -629,6 +653,9 @@ func (s *Store) ListWithWarnings(f Filter) ([]Meta, []string, error) {
 					continue
 				}
 				if f.Month != "" && !strings.HasPrefix(m.IssueDate, f.Month) {
+					continue
+				}
+				if (f.From != "" && m.IssueDate < f.From) || (f.To != "" && m.IssueDate > f.To) {
 					continue
 				}
 				out = append(out, *m)

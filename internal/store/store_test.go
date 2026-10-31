@@ -744,3 +744,66 @@ func TestUpdateKSeF_OnlyWhileSendingOrUnknownKeepsHistory(t *testing.T) {
 		t.Fatalf("rejected: %v", err)
 	}
 }
+
+func TestList_FilterFromTo(t *testing.T) {
+	s := newStore(t)
+	for _, d := range []time.Time{day(2026, 8, 31), day(2026, 9, 1), day(2026, 9, 15), day(2026, 9, 30), day(2026, 10, 1)} {
+		reserve(t, s, config.EnvTest, d)
+	}
+	dates := func(f Filter) string {
+		ms, err := s.List(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var o []string
+		for _, m := range ms {
+			o = append(o, m.IssueDate)
+		}
+		return strings.Join(o, " ")
+	}
+	if got := dates(Filter{From: "2026-09-01", To: "2026-09-30"}); got != "2026-09-01 2026-09-15 2026-09-30" {
+		t.Errorf("from-to = %s", got)
+	}
+	if got := dates(Filter{From: "2026-09-30"}); got != "2026-09-30 2026-10-01" {
+		t.Errorf("from only = %s", got)
+	}
+	if got := dates(Filter{To: "2026-08-31"}); got != "2026-08-31" {
+		t.Errorf("to only = %s", got)
+	}
+	if got := dates(Filter{Month: "2026-09", From: "2026-09-10"}); got != "2026-09-15 2026-09-30" {
+		t.Errorf("month and from = %s", got)
+	}
+}
+
+func TestFindByKSeFNumber(t *testing.T) {
+	s := newStore(t)
+	r := reserve(t, s, config.EnvTest, day(2026, 10, 30))
+	other := reserve(t, s, config.EnvDemo, day(2026, 10, 30))
+	const ksefNo = "5252248481-20261030-010020A0A242-F2"
+	if err := s.SaveDraft(config.EnvTest, r.Number, []byte("<x/>"), Meta{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Transition(config.EnvTest, r.Number, StateSending, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpdateKSeF(config.EnvTest, r.Number, func(k *KSeFRef) error { k.KSeFNumber = ksefNo; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.FindByKSeFNumber(config.EnvTest, ksefNo)
+	if err != nil || m.Number != r.Number {
+		t.Fatalf("%v %v", m, err)
+	}
+	if _, err := s.FindByKSeFNumber(config.EnvDemo, ksefNo); !errors.Is(err, ErrNotFound) {
+		t.Errorf("other env: %v", err)
+	}
+	if _, err := s.FindByKSeFNumber(config.EnvTest, "5252248481-20261030-010020A0A242-00"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown: %v", err)
+	}
+	if _, err := s.FindByKSeFNumber(config.EnvTest, ""); !errors.Is(err, ErrNotFound) {
+		t.Errorf("empty: %v", err)
+	}
+	if _, err := s.FindByKSeFNumber("moon", ksefNo); err == nil {
+		t.Error("bad env accepted")
+	}
+	_ = other
+}
