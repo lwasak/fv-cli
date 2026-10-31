@@ -30,7 +30,27 @@ This walks you from nothing to a first invoice accepted by KSeF, on the DEMO env
 
 ### 1. Install
 
-Download the archive for your platform from the [Releases page](https://github.com/lwasak/fv-cli/releases): `windows_amd64` (`.zip`), `darwin_arm64` (Apple silicon), `darwin_amd64` (Intel), `linux_amd64` or `linux_arm64` (`.tar.gz`), plus `checksums.txt`. Check the archive against `checksums.txt` before you run anything from it.
+The short way, with [Go](https://go.dev/dl/) 1.26.10 or newer (an older Go from 1.21 on downloads that toolchain by itself):
+
+```sh
+go install github.com/lwasak/fv-cli/cmd/fv@latest
+```
+
+The binary (`fv`, or `fv.exe` on Windows) lands in `GOBIN`, or in `$(go env GOPATH)/bin` when that is not set (`go env GOPATH` shows the folder). That folder must be on your `PATH`; if `fv` is not found afterwards, add it:
+
+```powershell
+# Windows (PowerShell), then open a new terminal
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$(go env GOPATH)\bin", "User")
+```
+
+```sh
+# macOS and Linux, in ~/.profile or your shell's rc file
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+The binary is built on your machine, so macOS and Windows do not quarantine or block it.
+
+Without Go, download the archive for your platform from the [Releases page](https://github.com/lwasak/fv-cli/releases): `windows_amd64` (`.zip`), `darwin_arm64` (Apple silicon), `darwin_amd64` (Intel), `linux_amd64` or `linux_arm64` (`.tar.gz`), plus `checksums.txt`. Check the archive against `checksums.txt` before you run anything from it.
 
 Windows (PowerShell):
 
@@ -56,12 +76,6 @@ xattr -d com.apple.quarantine ~/.local/bin/fv                # macOS only, if th
 ```
 
 Make sure `~/.local/bin` is on your `PATH`. The binaries are not code-signed, which is why macOS and Windows may block a browser download; a file fetched with `curl` is not affected.
-
-With Go 1.26.10 or newer you can build it yourself instead (`fv` lands in `$(go env GOPATH)/bin`):
-
-```sh
-go install github.com/lwasak/fv-cli/cmd/fv@latest
-```
 
 Check it:
 

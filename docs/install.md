@@ -4,9 +4,27 @@
 
 > **Binaries are not code-signed.** Release archives are built by GitHub Actions and come with SHA-256 checksums, but there is no Windows code signature and no Apple notarization. The sections below say what that means on each OS.
 
+## Install with go install
+
+The short way, and the one to try first. You need Go 1.26.10 or newer; an older Go (1.21 or newer) sees the `go` line of `go.mod` and downloads that toolchain by itself.
+
+```powershell
+go install github.com/lwasak/fv-cli/cmd/fv@latest
+```
+
+The binary (`fv`, or `fv.exe` on Windows) lands in `GOBIN`, or in `$(go env GOPATH)/bin` when `GOBIN` is not set. That folder must be on your `PATH`. If `fv` is not found afterwards, add it. In PowerShell (then open a new terminal):
+
+```powershell
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$(go env GOPATH)\bin", "User")
+```
+
+On macOS and Linux, put `export PATH="$PATH:$(go env GOPATH)/bin"` in `~/.profile` or your shell's rc file.
+
+A binary built on your own machine is never quarantined or blocked (see the OS sections). `fv version` prints the module version of the tag you installed (for example `0.1.0`), because Go embeds it. A build with plain `go build` inside a git checkout shows the pseudo-version Go makes up for it (`0.0.0-<time>-<commit>`, with `+dirty` when files were modified), plus the commit and date.
+
 ## Download a release
 
-Every tagged version is published on the [GitHub Releases page](https://github.com/lwasak/fv-cli/releases) with one archive per platform (`.tar.gz`, and `.zip` for Windows) and a `checksums.txt` file. Each archive holds the binary, the README and this user guide.
+The alternative when you do not have Go. Every tagged version is published on the [GitHub Releases page](https://github.com/lwasak/fv-cli/releases) with one archive per platform (`.tar.gz`, and `.zip` for Windows) and a `checksums.txt` file. Each archive holds the binary, the README and this user guide.
 
 Verify the download before you run it:
 
@@ -18,16 +36,6 @@ Get-FileHash .\fv_*_windows_amd64.zip -Algorithm SHA256
 ```
 
 Then unpack the archive and follow the section for your OS below.
-
-## Install with go install
-
-With Go 1.26.10 or newer:
-
-```powershell
-go install github.com/lwasak/fv-cli/cmd/fv@latest
-```
-
-This puts `fv` (`fv.exe` on Windows) in `$(go env GOPATH)/bin`; add that folder to your `PATH`. A binary built on your own machine is never quarantined or blocked (see the OS sections). `fv version` prints the module version of the tag you installed (for example `0.1.0`), because Go embeds it. A build with plain `go build` inside a git checkout shows the pseudo-version Go makes up for it (`0.0.0-<time>-<commit>`, with `+dirty` when files were modified), plus the commit and date.
 
 ## Build from source
 
