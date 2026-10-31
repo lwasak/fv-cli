@@ -102,7 +102,7 @@ KSeF allows **20 metadata queries per hour** per context, and a long range needs
 - Wait for the time KSeF names (fv prints it when KSeF gives one) and run `fv list` again.
 - Ask for less: `fv list --as buyer` or `--as seller` makes half the queries, and `--month` or a short `--from`/`--to` fewer windows.
 - `fv list --offline` shows the archive and what is cached without asking KSeF, and `fv show` of an invoice you already showed never asks either.
-- A result of more than 10 000 invoices in one window is truncated by KSeF; fv narrows the range automatically and exits 1 only if it cannot.
+- KSeF cuts a result off after 10 000 invoices; fv then continues from the last issue date it received. Only when more than 10 000 invoices share a single day does it stop (exit 1).
 
 **Exit 1 with `403` on list or show.** The certificate may not carry the `InvoiceRead` permission for this NIP. In the KSeF application, grant the permission to the person or certificate you log in with. Sales you sent with fv still list from the archive.
 
