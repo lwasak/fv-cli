@@ -51,7 +51,13 @@ type Line struct {
 	UnitPrice   money.Amount
 	Net         money.Amount
 	Rate        money.Rate
+	Index       string // Indeks, optional, at most 50 characters
+	GTIN        string // optional, at most 20 characters
+	PKWiU       string // optional, at most 50 characters
 }
+
+// MaxLines is the most lines the schema allows (FaWiersz maxOccurs).
+const MaxLines = 10000
 
 // Input is everything Build needs. Build performs no VAT arithmetic:
 // all amounts, including VATPLN, are computed by the caller.
@@ -63,6 +69,8 @@ type Input struct {
 	SystemInfo     string // optional
 	ExemptionBasis string // required when a zw line exists
 	BankAccount    string
+	BankName       string // optional NazwaBanku, 1-256 characters
+	BankSWIFT      string // optional SWIFT/BIC, already normalised
 	IssueDate      time.Time
 	SaleDate       time.Time // zero or equal to IssueDate: P_6 omitted
 	DueDate        time.Time
@@ -150,6 +158,9 @@ type opis struct {
 type wiersz struct {
 	NrWierszaFa int
 	P7          string `xml:"P_7"`
+	Indeks      string `xml:",omitempty"`
+	GTIN        string `xml:",omitempty"`
+	PKWiU       string `xml:",omitempty"`
 	P8A         string `xml:"P_8A,omitempty"`
 	P8B         string `xml:"P_8B,omitempty"`
 	P9A         string `xml:"P_9A"`
@@ -163,7 +174,9 @@ type termin struct {
 }
 
 type rachunek struct {
-	NrRB string
+	NrRB       string
+	SWIFT      string `xml:",omitempty"`
+	NazwaBanku string `xml:",omitempty"`
 }
 
 type platnosc struct {
@@ -211,6 +224,7 @@ var (
 	curRe   = regexp.MustCompile(`^[A-Z]{3}$`)
 	plRBRe  = regexp.MustCompile(`^\d{26}$`)
 	ibanRe  = regexp.MustCompile(`^[A-Z0-9]{10,34}$`)
+	swiftRe = regexp.MustCompile(`^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3}){0,1}$`)
 )
 
 var euCodes = map[string]bool{
@@ -332,6 +346,9 @@ func Build(in Input) ([]byte, error) {
 	if len(in.Lines) == 0 {
 		return nil, errors.New("invoice has no lines")
 	}
+	if len(in.Lines) > MaxLines {
+		return nil, fmt.Errorf("invoice has %d lines; FA(3) allows at most %d", len(in.Lines), MaxLines)
+	}
 	p1, err := buildParty1(in.Seller)
 	if err != nil {
 		return nil, err
@@ -343,6 +360,14 @@ func Build(in Input) ([]byte, error) {
 	rb, err := normalizeNrRB(in.BankAccount)
 	if err != nil {
 		return nil, err
+	}
+	if in.BankSWIFT != "" && !swiftRe.MatchString(in.BankSWIFT) {
+		return nil, fmt.Errorf("bank SWIFT %q is not valid: use 8 or 11 capital letters and digits, e.g. BREXPLPW", in.BankSWIFT)
+	}
+	if in.BankName != "" {
+		if err := checkToken("bank name", in.BankName, 256); err != nil {
+			return nil, err
+		}
 	}
 	if foreign && (in.Exchange == nil || in.Exchange.MidMicro <= 0) {
 		return nil, fmt.Errorf("an exchange rate is required for %s", cur)
@@ -357,7 +382,7 @@ func Build(in Input) ([]byte, error) {
 		Platnosc: platnosc{
 			TerminPlatnosci: termin{Termin: date(in.DueDate)},
 			FormaPlatnosci:  6,
-			RachunekBankowy: rachunek{NrRB: rb},
+			RachunekBankowy: rachunek{NrRB: rb, SWIFT: in.BankSWIFT, NazwaBanku: in.BankName},
 		},
 		P15: money.FormatXML(in.Summary.Gross),
 	}
@@ -414,9 +439,22 @@ func Build(in Input) ([]byte, error) {
 		if strings.TrimSpace(l.Description) == "" {
 			return nil, fmt.Errorf("line %d has no description", i+1)
 		}
+		for _, c := range []struct {
+			what, v string
+			max     int
+		}{{"index", l.Index, 50}, {"GTIN", l.GTIN, 20}, {"PKWiU", l.PKWiU, 50}} {
+			if c.v != "" {
+				if err := checkToken(fmt.Sprintf("line %d %s", i+1, c.what), c.v, c.max); err != nil {
+					return nil, err
+				}
+			}
+		}
 		w := wiersz{
 			NrWierszaFa: l.No,
 			P7:          l.Description,
+			Indeks:      l.Index,
+			GTIN:        l.GTIN,
+			PKWiU:       l.PKWiU,
 			P8A:         l.Unit,
 			P8B:         money.FormatQuantityXML(l.Qty),
 			P9A:         money.FormatXML(l.UnitPrice),
@@ -464,6 +502,18 @@ func Build(in Input) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// checkToken rejects a value the schema (xsd:token, whitespace collapsed) would not accept:
+// blank, or longer than max characters.
+func checkToken(what, v string, max int) error {
+	if strings.TrimSpace(v) == "" {
+		return fmt.Errorf("%s must not be blank", what)
+	}
+	if n := len([]rune(v)); n > max {
+		return fmt.Errorf("%s is %d characters; the schema allows at most %d", what, n, max)
+	}
+	return nil
 }
 
 // MaxXMLSize is KSeF's limit for an invoice without attachments: 1 MB (1 000 000 bytes).

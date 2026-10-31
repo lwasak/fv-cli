@@ -92,7 +92,85 @@ func goldenInputs(t *testing.T) map[string]Input {
 	}
 	eur.VATPLN = map[string]money.Amount{"23": vatPLN}
 	out["eur23"] = eur
+	out["multi"] = multiInput(t)
+	out["eurmulti"] = eurMultiInput(t)
 	return out
+}
+
+// lineOf builds a line the way invoice.Compute does: net is qty x price, rounded half up.
+func lineOf(t *testing.T, no int, desc, unit, qty, price, rate string) Line {
+	t.Helper()
+	q, err := money.ParseQuantity(qty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := money.ParseAmount(price)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := money.NetOf(q, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Line{No: no, Description: desc, Unit: unit, Qty: q, UnitPrice: p, Net: n, Rate: mustRate(t, rate)}
+}
+
+func summarize(t *testing.T, lines []Line) money.Summary {
+	t.Helper()
+	var ml []money.Line
+	for _, l := range lines {
+		ml = append(ml, money.Line{Rate: l.Rate, Net: l.Net})
+	}
+	s, err := money.Summarize(ml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// multiInput is a PLN invoice with two 23% lines (one of them 2,5 x 33,33 = 83,325, which
+// rounds to 83,33), an 8% line and an exempt line, with index, GTIN, PKWiU, bank name and SWIFT.
+func multiInput(t *testing.T) Input {
+	in := baseInput(t)
+	in.BankName = "mBank S.A."
+	in.BankSWIFT = "BREXPLPW"
+	in.ExemptionBasis = "art. 43 ust. 1 pkt 37 ustawy o VAT"
+	in.Lines = []Line{
+		lineOf(t, 1, "Usługi programistyczne - październik 2026", "h", "160", "120,00", "23"),
+		lineOf(t, 2, "Materiały eksploatacyjne", "szt.", "2,5", "33,33", "23"),
+		lineOf(t, 3, "Książka", "szt.", "4", "25,00", "8"),
+		lineOf(t, 4, "Szkolenie", "usł.", "1", "500,00", "zw"),
+	}
+	in.Lines[0].Index = "DEV-01"
+	in.Lines[1].PKWiU = "17.23.13.0"
+	in.Lines[1].GTIN = "5901234123457"
+	in.Lines[2].Index = "BOOK-7"
+	in.Lines[2].GTIN = "96385074"
+	in.Summary = summarize(t, in.Lines)
+	return in
+}
+
+// eurMultiInput is a EUR invoice with 23% and 8% lines: both groups carry a VAT in PLN.
+func eurMultiInput(t *testing.T) Input {
+	in := baseInput(t)
+	in.Currency = "EUR"
+	in.Buyer = Party{EUCode: "EL", VatNumber: "094259216", Name: "Hellas Trading A.E.", CountryCode: "GR", AddressL1: "Ermou 15", AddressL2: "10563 Athina"}
+	in.BankSWIFT = "BREXPLPWXXX"
+	in.Lines = []Line{
+		lineOf(t, 1, "Software development services", "h", "80", "75,00", "23"),
+		lineOf(t, 2, "Printed manual", "szt.", "10", "19,99", "8"),
+	}
+	in.Summary = summarize(t, in.Lines)
+	in.Exchange = &Exchange{MidMicro: 4251200, Table: "210/A/NBP/2026", EffectiveDate: "2026-10-29", Currency: "EUR"}
+	in.VATPLN = map[string]money.Amount{}
+	for _, g := range in.Summary.Groups {
+		v, err := money.ConvertMicro(g.VAT, 4251200)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.VATPLN[g.Rate.Code] = v
+	}
+	return in
 }
 
 func goldenDir() string { return filepath.Join("testdata", "golden") }
@@ -263,7 +341,7 @@ func TestNormalizeNrRB(t *testing.T) {
 
 func TestGolden_XSD(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join(goldenDir(), "*.xml"))
-	if err != nil || len(files) < 5 {
+	if err != nil || len(files) < 7 {
 		t.Fatalf("goldens: %v %v", files, err)
 	}
 	work := t.TempDir()
@@ -348,5 +426,123 @@ func TestCheckSize_OneMegabyteLimit(t *testing.T) {
 	}
 	if err := checkSize(make([]byte, MaxXMLSize+1)); err == nil || !strings.Contains(err.Error(), "1 MB") {
 		t.Errorf("over the limit: %v", err)
+	}
+}
+
+func TestMulti_AmountsAndElementOrder(t *testing.T) {
+	got, err := Build(multiInput(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := string(got)
+	// 160 x 120,00 + 2,5 x 33,33 (83,325 -> 83,33) = 19 283,33; VAT once on the group.
+	for _, want := range []string{
+		"<P_11>83.33</P_11>", "<P_13_1>19283.33</P_13_1>", "<P_14_1>4435.17</P_14_1>",
+		"<P_13_2>100.00</P_13_2>", "<P_14_2>8.00</P_14_2>", "<P_13_7>500.00</P_13_7>",
+		"<P_15>24326.50</P_15>",
+	} {
+		if !strings.Contains(x, want) {
+			t.Errorf("output lacks %s", want)
+		}
+	}
+	// FaWiersz order: NrWierszaFa, P_7, Indeks, GTIN, PKWiU, P_8A.
+	row := x[strings.Index(x, "<FaWiersz>"):strings.Index(x, "</FaWiersz>")]
+	assertOrder(t, row, "<NrWierszaFa>", "<P_7>", "<Indeks>", "<P_8A>", "<P_8B>", "<P_9A>", "<P_11>", "<P_12>")
+	third := x[strings.Index(x, "<NrWierszaFa>3</NrWierszaFa>"):]
+	third = third[:strings.Index(third, "</FaWiersz>")]
+	assertOrder(t, third, "<P_7>", "<Indeks>", "<GTIN>", "<P_8A>")
+	second := x[strings.Index(x, "<NrWierszaFa>2</NrWierszaFa>"):]
+	second = second[:strings.Index(second, "</FaWiersz>")]
+	assertOrder(t, second, "<P_7>", "<GTIN>", "<PKWiU>", "<P_8A>")
+	if strings.Contains(second, "<Indeks>") {
+		t.Error("line 2 has no index; Indeks must be omitted")
+	}
+	// Bank: NrRB, SWIFT, NazwaBanku.
+	assertOrder(t, x, "<NrRB>", "<SWIFT>BREXPLPW</SWIFT>", "<NazwaBanku>mBank S.A.</NazwaBanku>")
+}
+
+func assertOrder(t *testing.T, s string, parts ...string) {
+	t.Helper()
+	pos := -1
+	for _, p := range parts {
+		i := strings.Index(s, p)
+		if i < 0 {
+			t.Errorf("missing %s", p)
+			return
+		}
+		if i < pos {
+			t.Errorf("%s is out of order", p)
+		}
+		pos = i
+	}
+}
+
+func TestBuild_OptionalFieldsOmittedWhenEmpty(t *testing.T) {
+	got, err := Build(single(t, baseInput(t), "23", 1850000, 1850000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range []string{"<Indeks>", "<GTIN>", "<PKWiU>", "<SWIFT>", "<NazwaBanku>"} {
+		if strings.Contains(string(got), tag) {
+			t.Errorf("%s written without a value", tag)
+		}
+	}
+}
+
+func TestBuild_EurMultiHasVATInPLNPerGroup(t *testing.T) {
+	got, err := Build(eurMultiInput(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := string(got)
+	for _, tag := range []string{"<P_14_1W>", "<P_14_2W>"} {
+		if !strings.Contains(x, tag) {
+			t.Errorf("missing %s", tag)
+		}
+	}
+	if n := strings.Count(x, "<KursWaluty>4.2512</KursWaluty>"); n != 2 {
+		t.Errorf("KursWaluty on %d lines, want 2", n)
+	}
+}
+
+func TestBuild_RejectsBadBankAndLineFields(t *testing.T) {
+	tests := []struct {
+		name string
+		mut  func(*Input)
+		want string
+	}{
+		{"swift lower case", func(in *Input) { in.BankSWIFT = "brexplpw" }, "SWIFT"},
+		{"swift 9 chars", func(in *Input) { in.BankSWIFT = "BREXPLPW1" }, "SWIFT"},
+		{"bank name blank", func(in *Input) { in.BankName = "   " }, "bank name"},
+		{"bank name long", func(in *Input) { in.BankName = strings.Repeat("b", 257) }, "256"},
+		{"index long", func(in *Input) { in.Lines[0].Index = strings.Repeat("i", 51) }, "index"},
+		{"pkwiu blank", func(in *Input) { in.Lines[0].PKWiU = " " }, "PKWiU"},
+		{"gtin long", func(in *Input) { in.Lines[0].GTIN = strings.Repeat("1", 21) }, "GTIN"},
+	}
+	for _, tc := range tests {
+		in := single(t, baseInput(t), "23", 1850000, 1850000)
+		tc.mut(&in)
+		if _, err := Build(in); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v, want %q", tc.name, err, tc.want)
+		}
+	}
+	// 11-character SWIFT, a bank name at the limit and a GTIN at the limit are fine.
+	in := single(t, baseInput(t), "23", 1850000, 1850000)
+	in.BankSWIFT, in.BankName, in.Lines[0].GTIN = "BREXPLPWXXX", strings.Repeat("b", 256), strings.Repeat("1", 20)
+	if _, err := Build(in); err != nil {
+		t.Errorf("at the limits: %v", err)
+	}
+}
+
+func TestBuild_RejectsTooManyLines(t *testing.T) {
+	in := single(t, baseInput(t), "23", 100, 100)
+	l := in.Lines[0]
+	in.Lines = make([]Line, MaxLines+1)
+	for i := range in.Lines {
+		in.Lines[i] = l
+		in.Lines[i].No = i + 1
+	}
+	if _, err := Build(in); err == nil || !strings.Contains(err.Error(), "10000") {
+		t.Errorf("10001 lines: %v", err)
 	}
 }
