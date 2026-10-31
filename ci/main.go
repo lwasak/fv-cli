@@ -122,7 +122,7 @@ git tag -f "$GORELEASER_CURRENT_TAG" >/dev/null
 func (m *Fv) Build(
 	ctx context.Context,
 	// +defaultPath="/"
-	// +ignore=["dist", "ci", ".git"]
+	// +ignore=["dist"]
 	source *dagger.Directory,
 	// +default="snapshot"
 	version string,
@@ -140,7 +140,7 @@ func (m *Fv) Build(
 func (m *Fv) Release(
 	ctx context.Context,
 	// +defaultPath="/"
-	// +ignore=["dist", "ci"]
+	// +ignore=["dist"]
 	source *dagger.Directory,
 	// Git tag to release, for example v0.1.0.
 	tag string,
