@@ -13,7 +13,7 @@ var ErrDownloadHash = errors.New("ksef: the downloaded invoice does not match it
 
 // DownloadInvoice reads GET /invoices/ksef/{ksefNumber}: the invoice XML exactly as KSeF
 // stores it. The number is validated first. The SHA-256 of the body must equal the
-// x-ms-meta-hash header (a mismatch is an error, because the content is shown to the user);
+// x-ms-meta-hash header (a mismatch or a missing header is an error, because the content is shown to the user);
 // hashB64 is the SHA-256 of the body in Base64. A 429 is retried like any GET. KSeF answers
 // 21164 for an unknown number and 21165 for one that is not downloadable yet (see
 // IsNoSuchInvoice and IsNotYetAvailable).
@@ -29,7 +29,11 @@ func (c *Client) DownloadInvoice(ctx context.Context, s *Session, ksefNumber str
 		return nil, "", fmt.Errorf("ksef: the answer for invoice %s is empty", ksefNumber)
 	}
 	got, _ := InvoiceHash(resp.Body)
-	if want := resp.Header.Get("x-ms-meta-hash"); want != "" && want != got {
+	want := resp.Header.Get("x-ms-meta-hash")
+	if want == "" {
+		return nil, "", fmt.Errorf("invoice %s: %w (KSeF sent no x-ms-meta-hash header, so the content cannot be verified)", ksefNumber, ErrDownloadHash)
+	}
+	if want != got {
 		return nil, "", fmt.Errorf("invoice %s: %w", ksefNumber, ErrDownloadHash)
 	}
 	return resp.Body, got, nil

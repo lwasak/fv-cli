@@ -91,7 +91,9 @@ func (s *session) downloadInvoice(cmd *cobra.Command, rc *runContext, cache *kse
 	default:
 		return nil, err
 	}
-	if err := cache.PutXML(ctx, ksefNo, b, hash); err != nil {
+	if err := cache.PutXML(ctx, ksefNo, b, hash); errors.Is(err, ksefcache.ErrHashMismatch) {
+		return nil, fmt.Errorf("%w; nothing was cached and the invoice is not shown", err)
+	} else if err != nil {
 		_, _ = fmt.Fprintf(s.deps.Stderr, "warning: the invoice could not be cached, so the next show downloads it again: %v\n", err)
 	}
 	return b, nil

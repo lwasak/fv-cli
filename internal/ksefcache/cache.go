@@ -233,8 +233,9 @@ func hashOf(b []byte) string {
 }
 
 // PutXML stores the XML of an invoice and records its hash. hash must be the Base64
-// SHA-256 of b (ErrHashMismatch otherwise, nothing is written). An invoice without an
-// entry gets a minimal one, so the XML can be verified later.
+// SHA-256 of b, and equal to the invoiceHash of the cached metadata when there is one
+// (ErrHashMismatch otherwise, nothing is written). An invoice without an entry gets a
+// minimal one, so the XML can be verified later.
 func (c *Cache) PutXML(ctx context.Context, ksefNumber string, b []byte, hash string) error {
 	p, err := c.xmlPath(ksefNumber)
 	if err != nil {
@@ -244,6 +245,9 @@ func (c *Cache) PutXML(ctx context.Context, ksefNumber string, b []byte, hash st
 		return fmt.Errorf("%w: %s", ErrHashMismatch, ksefNumber)
 	}
 	return c.update(ctx, true, func(idx *index) error {
+		if known := idx.Entries[ksefNumber].InvoiceHash; known != "" && known != hash {
+			return fmt.Errorf("%w: %s differs from the invoiceHash KSeF listed", ErrHashMismatch, ksefNumber)
+		}
 		if err := fsafe.MkdirAll(filepath.Dir(p)); err != nil {
 			return fmt.Errorf("ksefcache: create xml folder: %w", err)
 		}

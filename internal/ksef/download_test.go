@@ -54,6 +54,18 @@ func TestDownloadInvoice_HashMismatchIsRefused(t *testing.T) {
 	}
 }
 
+func TestDownloadInvoice_MissingHashHeaderIsRefused(t *testing.T) {
+	fx := newQueryFixture(t, 0)
+	n := fx.q.Add(ksefake.QMeta{InvoiceNumber: "FV/1", IssueDate: "2026-09-15", SellerNIP: queryNIP}, downloadXML)
+	fx.f.Handle("GET", "/invoices/ksef/"+n, func(ksefake.Request) ksefake.Response {
+		return ksefake.Response{Body: string(downloadXML), ContentType: "application/xml"}
+	})
+	got, _, err := fx.c.DownloadInvoice(context.Background(), fx.s, n)
+	if !errors.Is(err, ErrDownloadHash) || got != nil || !strings.Contains(err.Error(), "x-ms-meta-hash") {
+		t.Errorf("got %q, err %v", got, err)
+	}
+}
+
 func TestDownloadInvoice_EmptyBodyIsAnError(t *testing.T) {
 	fx := newQueryFixture(t, 0)
 	n := fx.q.Add(ksefake.QMeta{InvoiceNumber: "FV/1", IssueDate: "2026-09-15", SellerNIP: queryNIP}, downloadXML)

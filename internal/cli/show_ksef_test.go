@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,5 +141,39 @@ func TestShow_NotYetAvailableAndUnknown(t *testing.T) {
 	code, _, errs = fx.run("show", "5260250274-20260101-AAAAAAAAAAAA-AA")
 	if code != 1 {
 		t.Errorf("unknown KSeF number: exit %d %s", code, errs)
+	}
+}
+
+func TestShow_DownloadWithoutHashHeaderIsRefused(t *testing.T) {
+	fx := newListFx(t)
+	if code, _, errs := fx.run("list"); code != 0 {
+		t.Fatalf("list: %s", errs)
+	}
+	forged := otherInvoiceXML(t, "ZAK/09/15", "2026-09-15", 9999900, supplierNIP, supplierName, ksefNIP, "MOJA FIRMA")
+	fx.fake.Inject("GET", "/invoices/ksef/", 1, ksefake.Response{Status: 200, Body: string(forged), ContentType: "application/xml"})
+	code, out, errs := fx.run("show", fx.purchaseNo)
+	if code != 1 || out != "" || !strings.Contains(errs, "x-ms-meta-hash") || !strings.Contains(errs, "nothing was cached") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if _, err := os.Stat(fx.cachedXMLPath(fx.purchaseNo)); !os.IsNotExist(err) {
+		t.Errorf("a forged body was cached: %v", err)
+	}
+}
+
+func TestShow_DownloadThatDiffersFromTheListedHashIsRefused(t *testing.T) {
+	fx := newListFx(t)
+	if code, _, errs := fx.run("list"); code != 0 {
+		t.Fatalf("list: %s", errs)
+	}
+	forged := otherInvoiceXML(t, "ZAK/09/15", "2026-09-15", 9999900, supplierNIP, supplierName, ksefNIP, "MOJA FIRMA")
+	sum := sha256.Sum256(forged)
+	fx.fake.Inject("GET", "/invoices/ksef/", 1, ksefake.Response{Status: 200, Body: string(forged), ContentType: "application/xml",
+		Header: map[string]string{"x-ms-meta-hash": base64.StdEncoding.EncodeToString(sum[:])}})
+	code, out, errs := fx.run("show", fx.purchaseNo)
+	if code != 1 || out != "" || !strings.Contains(errs, "invoiceHash") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if _, err := os.Stat(fx.cachedXMLPath(fx.purchaseNo)); !os.IsNotExist(err) {
+		t.Errorf("a forged body was cached: %v", err)
 	}
 }

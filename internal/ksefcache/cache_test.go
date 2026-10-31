@@ -226,6 +226,25 @@ func TestPutXML_RefusesWrongHashAndBadNumber(t *testing.T) {
 	}
 }
 
+func TestPutXML_RefusesHashThatDiffersFromTheListedInvoiceHash(t *testing.T) {
+	c := open(t)
+	listed := []byte("<Faktura><P_15>615.00</P_15></Faktura>")
+	m := ksef.InvoiceMeta{KSeFNumber: numA, IssueDate: "2026-09-15", InvoiceHash: hashOf(listed)}
+	if err := c.Merge(context.Background(), []ksef.InvoiceMeta{m}); err != nil {
+		t.Fatal(err)
+	}
+	other := []byte("<Faktura><P_15>122998.77</P_15></Faktura>")
+	if err := c.PutXML(context.Background(), numA, other, hashOf(other)); !errors.Is(err, ErrHashMismatch) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := c.XML(numA); !errors.Is(err, ErrNotCached) {
+		t.Errorf("the forged body was cached: %v", err)
+	}
+	if err := c.PutXML(context.Background(), numA, listed, hashOf(listed)); err != nil {
+		t.Errorf("the listed body: %v", err)
+	}
+}
+
 func TestXML_TamperedFileIsRefused(t *testing.T) {
 	c := open(t)
 	xml := []byte("<Faktura><P_15>100.00</P_15></Faktura>")
