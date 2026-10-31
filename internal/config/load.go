@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -45,7 +46,31 @@ func describe(path string, err error) error {
 		if k := strings.Join(de.Key(), "."); k != "" {
 			key = fmt.Sprintf(" at key %q", k)
 		}
+		if hint, ok := quoteHint(de); ok {
+			return fmt.Errorf("%s: line %d, column %d: %s", path, row, col, hint)
+		}
 		return fmt.Errorf("%s: line %d, column %d%s: %s", path, row, col, key, de.Error())
 	}
 	return fmt.Errorf("%s: %w", path, err)
+}
+
+// stringTypeRE matches go-toml's message for a TOML number, date or boolean written where
+// the config expects a string.
+var stringTypeRE = regexp.MustCompile(`cannot decode TOML \w+ into struct field \S+ of type string$`)
+
+// quoteHint turns that type error into advice. Amounts and quantities are strings in the
+// config (a float would lose the exact value), so a bare number is a common mistake.
+func quoteHint(de *toml.DecodeError) (string, bool) {
+	keys := de.Key()
+	if len(keys) == 0 || !stringTypeRE.MatchString(de.Error()) {
+		return "", false
+	}
+	full, last := strings.Join(keys, "."), keys[len(keys)-1]
+	switch last {
+	case "unit_price":
+		return fmt.Sprintf("%s: write the amount as a quoted string, e.g. %s = \"120,50\"", full, last), true
+	case "quantity":
+		return fmt.Sprintf("%s: write the amount as a quoted string, e.g. %s = \"1,5\"", full, last), true
+	}
+	return fmt.Sprintf("%s: write the value as a quoted string, e.g. %s = \"…\"", full, last), true
 }

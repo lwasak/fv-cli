@@ -142,3 +142,32 @@ func TestLoad_UnquotedItemPriceIsAnError(t *testing.T) {
 		t.Fatalf("err = %v, want it to name unit_price", err)
 	}
 }
+
+func TestLoad_BareNumberForStringKeyGetsQuoteHint(t *testing.T) {
+	tests := []struct{ name, toml, want string }{
+		{"unit_price float", "[items.dev]\nname = \"x\"\nunit_price = 120.5\n",
+			`items.dev.unit_price: write the amount as a quoted string, e.g. unit_price = "120,50"`},
+		{"unit_price integer", "[items.dev]\nname = \"x\"\nunit_price = 120\n",
+			`items.dev.unit_price: write the amount as a quoted string, e.g. unit_price = "120,50"`},
+		{"quantity", "[items.dev]\nname = \"x\"\nunit_price = \"1\"\nquantity = 160\n",
+			`items.dev.quantity: write the amount as a quoted string, e.g. quantity = "1,5"`},
+		{"other string key", "[defaults]\nbank_account = 12345\n",
+			`defaults.bank_account: write the value as a quoted string, e.g. bank_account = "…"`},
+	}
+	for _, tc := range tests {
+		_, err := Load(writeCfg(t, tc.toml))
+		if err == nil || !strings.Contains(err.Error(), ": line ") || !strings.HasSuffix(err.Error(), ": "+tc.want) {
+			t.Errorf("%s: err = %v, want suffix %q", tc.name, err, tc.want)
+		}
+		if err != nil && strings.Contains(err.Error(), "cannot decode") {
+			t.Errorf("%s: go-toml text leaked: %v", tc.name, err)
+		}
+	}
+}
+
+func TestLoad_OtherTypeErrorsKeepGoTomlText(t *testing.T) {
+	_, err := Load(writeCfg(t, "[defaults]\npayment_days = \"x\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "payment_days") {
+		t.Fatalf("err = %v", err)
+	}
+}
