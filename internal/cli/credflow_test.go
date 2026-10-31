@@ -70,7 +70,7 @@ func TestInit_ImportsP12AndStoresPassphrase(t *testing.T) {
 	fx := newInitFx(t)
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-" + ksefNIP})
 	p := fx.write("c.p12", credtest.P12(t, c, ksefPass))
-	code, stdout, stderr := fx.run(ksefNIP + "\ntest\ny\n" + p + "\n")
+	code, stdout, stderr := fx.run(ksefNIP + "\ntest\n\ny\n" + p + "\n")
 	if code != 0 {
 		t.Fatalf("exit %d stderr %q stdout %q", code, stderr, stdout)
 	}
@@ -96,7 +96,7 @@ func TestInit_ImportsPEMKeyAndCert(t *testing.T) {
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-" + ksefNIP})
 	cp := fx.write("c.crt", credtest.CertPEM(c))
 	kp := fx.write("c.key", credtest.EncryptedKeyPEM(t, c, ksefPass))
-	code, stdout, stderr := fx.run(ksefNIP + "\ntest\nyes\n" + cp + "\n" + kp + "\n")
+	code, stdout, stderr := fx.run(ksefNIP + "\ntest\n\nyes\n" + cp + "\n" + kp + "\n")
 	if code != 0 {
 		t.Fatalf("exit %d stderr %q", code, stderr)
 	}
@@ -113,7 +113,7 @@ func TestInit_ImportsPESELOnlyEncryptedPKCS8OnDemo(t *testing.T) {
 	c := credtest.New(t, *peselSpec())
 	cp := fx.write("cli-tool.crt", credtest.CertPEM(c))
 	kp := fx.write("cli-tool.key", credtest.EncryptedKeyPEM(t, c, ksefPass))
-	code, stdout, stderr := fx.run(ksefNIP + "\ndemo\ny\n" + cp + "\n" + kp + "\n")
+	code, stdout, stderr := fx.run(ksefNIP + "\ndemo\n\ny\n" + cp + "\n" + kp + "\n")
 	if code != 0 {
 		t.Fatalf("exit %d stderr %q", code, stderr)
 	}
@@ -128,7 +128,7 @@ func TestInit_ImportsPESELOnlyEncryptedPKCS8OnDemo(t *testing.T) {
 func TestInit_ImportDeclinedOrEOFSkips(t *testing.T) {
 	for _, tail := range []string{"", "n\n", "\n"} {
 		fx := newInitFx(t)
-		code, _, stderr := fx.run(ksefNIP + "\ntest\n" + tail)
+		code, _, stderr := fx.run(ksefNIP + "\ntest\n\n" + tail)
 		if code != 0 {
 			t.Fatalf("tail %q: exit %d stderr %q", tail, code, stderr)
 		}
@@ -146,7 +146,7 @@ func TestInit_ImportUnencryptedKeyRefusedWritesNothing(t *testing.T) {
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-" + ksefNIP})
 	cp := fx.write("c.crt", credtest.CertPEM(c))
 	kp := fx.write("c.key", credtest.PlainKeyPEM(t, c))
-	code, _, stderr := fx.run(ksefNIP + "\ntest\ny\n" + cp + "\n" + kp + "\n")
+	code, _, stderr := fx.run(ksefNIP + "\ntest\n\ny\n" + cp + "\n" + kp + "\n")
 	if code == 0 || stderr == "" {
 		t.Fatalf("exit %d stderr %q", code, stderr)
 	}
@@ -182,7 +182,7 @@ func TestInit_ImportNIPMismatchRefused(t *testing.T) {
 	fx := newInitFx(t)
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-5260250275"})
 	p := fx.write("c.p12", credtest.P12(t, c, ksefPass))
-	code, _, stderr := fx.run(ksefNIP + "\ntest\ny\n" + p + "\n")
+	code, _, stderr := fx.run(ksefNIP + "\ntest\n\ny\n" + p + "\n")
 	if code == 0 || !strings.Contains(stderr, "5260250275") {
 		t.Fatalf("exit %d stderr %q", code, stderr)
 	}
@@ -198,7 +198,7 @@ func TestInit_PassphraseNeverEchoed(t *testing.T) {
 	fx := newInitFx(t)
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-" + ksefNIP})
 	p := fx.write("c.p12", credtest.P12(t, c, ksefPass))
-	_, stdout, stderr := fx.run(ksefNIP + "\ntest\ny\n" + p + "\n")
+	_, stdout, stderr := fx.run(ksefNIP + "\ntest\n\ny\n" + p + "\n")
 	if strings.Contains(stdout+stderr, ksefPass) {
 		t.Error("passphrase echoed")
 	}
@@ -306,7 +306,7 @@ func TestInit_KeyringUnavailableFailsEarlyWithClearMessage(t *testing.T) {
 	fx.backend.down = true
 	c := credtest.New(t, credtest.Spec{OrganizationIdentifier: "VATPL-" + ksefNIP})
 	p := fx.write("c.p12", credtest.P12(t, c, ksefPass))
-	code, _, stderr := fx.run(ksefNIP + "\ntest\ny\n" + p + "\n")
+	code, _, stderr := fx.run(ksefNIP + "\ntest\n\ny\n" + p + "\n")
 	if code == 0 {
 		t.Fatal("expected a failure")
 	}
@@ -414,7 +414,7 @@ func TestInit_ScriptedImportUsesEnvPassphraseAndLeavesKeyringAlone(t *testing.T)
 	kp := fx.write("c.key", append([]byte("\xef\xbb\xbf"), credtest.EncryptedKeyPEM(t, c, ksefPass)...))
 	var out, errb bytes.Buffer
 	deps := Deps{
-		Stdin: strings.NewReader(ksefNIP + "\ndemo\n"), Stdout: &out, Stderr: &errb,
+		Stdin: strings.NewReader(ksefNIP + "\ndemo\n\n"), Stdout: &out, Stderr: &errb,
 		Getenv: func(k string) string {
 			return map[string]string{"FV_DATA_DIR": fx.dataDir, "FV_SECRET_KSEF_DEMO_" + ksefNIP: ksefPass}[k]
 		},

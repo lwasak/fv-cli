@@ -93,11 +93,12 @@ A personal certificate carries your PESEL, not a NIP. That is fine: `fv` logs in
 fv --env demo init
 ```
 
-`fv init` asks for your seller NIP and environment, writes a minimal `config.toml`, and offers to import the certificate. Answer `y` and give the paths; the passphrase is typed without echo and stored in the OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service).
+`fv init` asks for your seller NIP, the environment and your bank account (IBAN, optional), writes a minimal `config.toml`, and offers to import the certificate. Answer `y` and give the paths; the passphrase is typed without echo and stored in the OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service).
 
 ```text
 Seller NIP (10 digits): 5555555555
 KSeF environment (test/demo/prod) [test]: demo
+Seller bank account, IBAN (optional, empty to skip): PL61 1090 1014 0000 0712 1981 2874
 config written: C:\Users\you\AppData\Roaming\fv\config.toml
 Import a KSeF certificate for demo/5555555555? [y/N] y
 Certificate file (.p12/.pfx, or .pem/.crt): C:\keys\ksef-demo.crt
@@ -115,7 +116,7 @@ fv --env demo init --import-cert C:\keys\ksef-demo.crt --import-key C:\keys\ksef
 
 The variable is named `FV_SECRET_KSEF_<ENV>_<NIP>`. On macOS and Linux use `export FV_SECRET_KSEF_DEMO_5555555555=...` (or `read -rs`).
 
-`fv init` does not ask for everything an invoice needs. Open the config file and add your bank account and VAT rate:
+The account is written as `defaults.bank_account` (`--bank-account` gives it without the question), so you can issue an invoice right after `init`; pass `--rate` or set a VAT rate and any other defaults in the config file. Where the file lives, and a fuller example:
 
 | OS | Config file | Data (archive, certificate) |
 |---|---|---|

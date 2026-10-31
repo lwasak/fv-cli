@@ -8,11 +8,12 @@ First-time setup has three parts: a config file, a KSeF certificate for each env
 fv init
 ```
 
-`fv init` asks for your NIP and the KSeF environment, writes a minimal `config.toml`, and offers to import a certificate. It needs a terminal, because it asks for the key passphrase without echo. A typical session (the paths are examples):
+`fv init` asks for your NIP, the KSeF environment and your bank account (IBAN, optional), writes a minimal `config.toml`, and offers to import a certificate. It needs a terminal, because it asks for the key passphrase without echo. A typical session (the paths are examples):
 
 ```text
 Seller NIP (10 digits): 5260250274
 KSeF environment (test/demo/prod) [test]: test
+Seller bank account, IBAN (optional, empty to skip): PL61 1090 1014 0000 0712 1981 2874
 config written: C:\Users\you\AppData\Roaming\fv\config.toml
 Import a KSeF certificate for test/5260250274? [y/N] y
 Certificate file (.p12/.pfx, or .pem/.crt): C:\keys\ksef-test.crt
@@ -36,9 +37,12 @@ environment = "test"
 
 [seller]
 nip = "5260250274"
+
+[defaults]
+bank_account = "PL61 1090 1014 0000 0712 1981 2874"
 ```
 
-Where the file lives depends on the OS; see the [config reference](config-reference.md#where-fv-keeps-its-files). `fv --config .\config.toml init` writes it somewhere else.
+The `[defaults]` table is written only when you gave an account; an empty answer skips it. The IBAN is validated (country, length, checksum) and stored in groups of four. For a script, `fv init --bank-account "PL61 1090 1014 0000 0712 1981 2874"` gives it without the question. Where the file lives depends on the OS; see the [config reference](config-reference.md#where-fv-keeps-its-files). `fv --config .\config.toml init` writes it somewhere else.
 
 If a config already exists, `fv init` asks `Overwrite ...? [y/N]` first. Answer `N` to keep it; fv then offers the certificate import for the environment and NIP in that config. That is how you add the certificate of a second environment:
 
@@ -48,7 +52,7 @@ fv --env demo init
 
 Answer `N` to the overwrite question and `y` to the import question.
 
-Next, add what an invoice needs. A realistic config for a service business:
+Next, add the rest of what an invoice needs, mainly the VAT rate (or pass `--rate` per invoice). A realistic config for a service business:
 
 ```toml
 [ksef]
@@ -64,7 +68,7 @@ bank_account = "PL61 1090 1014 0000 0712 1981 2874"
 payment_days = 14
 ```
 
-`bank_account` is required to issue an invoice and `vat_rate` is required unless you pass `--rate`. Everything else has a default; see the [config reference](config-reference.md). Check the file at any time:
+`bank_account` is required to issue an invoice (`fv init` already wrote it if you answered) and `vat_rate` is required unless you pass `--rate`. Everything else has a default; see the [config reference](config-reference.md). Check the file at any time:
 
 ```powershell
 fv config validate

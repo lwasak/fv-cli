@@ -23,12 +23,13 @@ import (
 var errInputEnded = errors.New("input ended before all questions were answered; nothing was written")
 
 func newInitCmd(s *session) *cobra.Command {
-	var impCert, impKey string
+	var impCert, impKey, bankFlag string
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the config file by answering a few questions",
-		Long: "Asks for the seller NIP and the KSeF environment (test, demo or prod; empty means test) " +
-			"and writes a minimal config.toml at the resolved config path. " +
+		Long: "Asks for the seller NIP, the KSeF environment (test, demo or prod; empty means test) " +
+			"and the seller bank account (IBAN, optional; empty skips it) " +
+			"and writes a minimal config.toml at the resolved config path, with the account as defaults.bank_account. " +
 			"If the file already exists, asks for confirmation before replacing it; answer N to keep it.\n\n" +
 			"Then it offers to import a KSeF certificate for that environment and NIP: give a .p12/.pfx file, " +
 			"or a .pem/.crt certificate and its encrypted key file. The private key must be encrypted. " +
@@ -37,17 +38,23 @@ func newInitCmd(s *session) *cobra.Command {
 			"of the key and certificate in the data folder, and the original files can then be deleted. " +
 			"To import the certificate of another environment, run fv --env demo init, answer N to keeping the " +
 			"config and y to the import. See the user guide, docs/setup.md.\n\n" +
-			"For a scripted run (the live test in internal/live), --import-cert (and --import-key for a .pem/.crt) " +
+			"For a scripted run (the live test in internal/live), --bank-account gives the IBAN without the question, and --import-cert (and --import-key for a .pem/.crt) " +
 			"imports without the questions. The passphrase is then read from the environment variable " +
 			"FV_SECRET_KSEF_<ENV>_<NIP> (or asked on the terminal) and, when it came from the variable, " +
 			"is not written to the keyring; it is never a flag.",
-		Example: "  fv init\n  fv --config ./config.toml init\n  fv --env demo init\n  fv init --import-cert cert.pem --import-key key.pem",
+		Example: "  fv init\n  fv --config ./config.toml init\n  fv --env demo init\n  fv init --import-cert cert.pem --import-key key.pem\n  fv init --bank-account \"PL61 1090 1014 0000 0712 1981 2874\"",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if impCert == "" && impKey != "" {
 				return errors.New("--import-key needs --import-cert")
 			}
 			imp := importFiles{cert: impCert, key: impKey}
+			bankFlag = strings.TrimSpace(bankFlag)
+			if bankFlag != "" {
+				if err := validate.IBAN(bankFlag); err != nil {
+					return fmt.Errorf("--bank-account: %w", err)
+				}
+			}
 			paths, err := s.resolvePaths(cmd)
 			if err != nil {
 				return err
@@ -60,6 +67,9 @@ func newInitCmd(s *session) *cobra.Command {
 				line, ok := readLine(in)
 				if a := strings.ToLower(line); !ok || (a != "y" && a != "yes") {
 					_, _ = fmt.Fprintln(out, "config unchanged")
+					if bankFlag != "" {
+						_, _ = fmt.Fprintln(out, "--bank-account ignored: set defaults.bank_account in the config file")
+					}
 					// The kept config decides the environment and NIP of the import.
 					cfg, err := config.Load(paths.ConfigFile)
 					if err != nil || cfg.Seller.NIP == "" {
@@ -108,10 +118,27 @@ func newInitCmd(s *session) *cobra.Command {
 				break
 			}
 
+			bank := bankFlag
+			for bank == "" {
+				_, _ = fmt.Fprint(out, "Seller bank account, IBAN (optional, empty to skip): ")
+				line, ok := readLine(in)
+				if !ok || line == "" {
+					break // the account is optional, also when the input ended
+				}
+				if err := validate.IBAN(line); err != nil {
+					_, _ = fmt.Fprintf(out, "invalid IBAN: %v\n", err)
+					continue
+				}
+				bank = line
+			}
+			if bank != "" {
+				bank = groupIBAN(bank)
+			}
+
 			if err := fsafe.MkdirAll(filepath.Dir(paths.ConfigFile)); err != nil {
 				return err
 			}
-			if err := fsafe.WriteFile(paths.ConfigFile, config.MinimalTOML(nip, env)); err != nil {
+			if err := fsafe.WriteFile(paths.ConfigFile, config.MinimalTOMLWithBank(nip, env, bank)); err != nil {
 				return err
 			}
 			l, closeLog := s.logger(paths)
@@ -122,6 +149,7 @@ func newInitCmd(s *session) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&impCert, "import-cert", "", "import this certificate (.p12/.pfx or .pem/.crt) without the questions")
+	cmd.Flags().StringVar(&bankFlag, "bank-account", "", "seller bank account (IBAN) written as defaults.bank_account, without the question")
 	cmd.Flags().StringVar(&impKey, "import-key", "", "encrypted private key (.pem/.key) for a .pem/.crt given with --import-cert")
 	return cmd
 }

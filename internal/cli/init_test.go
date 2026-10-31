@@ -137,3 +137,103 @@ func TestInit_RespectsConfigFlagAndFVConfig(t *testing.T) {
 		t.Errorf("FV_CONFIG file written despite --config")
 	}
 }
+
+const initIBAN = "PL61 1090 1014 0000 0712 1981 2874"
+
+func initDefaultsBank(t *testing.T, p string) string {
+	t.Helper()
+	code, _, stderr := runCLI(t, nil, "--config", p, "config", "validate")
+	if code != 0 {
+		t.Fatalf("validate exit = %d, stderr = %q", code, stderr)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestInit_AsksBankAccountAndWritesDefaults(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.toml")
+	// lower case and no spaces are accepted and written in the grouped form
+	code, stdout, stderr := runInit(t, "5260250274\ndemo\npl61109010140000071219812874\n", nil, "--config", p, "init")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "Seller bank account") {
+		t.Errorf("stdout = %q", stdout)
+	}
+	data := initDefaultsBank(t, p)
+	if !strings.Contains(data, "[defaults]") || !strings.Contains(data, `bank_account = "`+initIBAN+`"`) {
+		t.Errorf("config = %q", data)
+	}
+}
+
+func TestInit_EmptyBankAccountSkips(t *testing.T) {
+	for _, in := range []string{"5260250274\ntest\n\n", "5260250274\ntest\n"} {
+		p := filepath.Join(t.TempDir(), "config.toml")
+		code, _, stderr := runInit(t, in, nil, "--config", p, "init")
+		if code != 0 {
+			t.Fatalf("input %q: exit = %d, stderr = %q", in, code, stderr)
+		}
+		data, _ := os.ReadFile(p)
+		if strings.Contains(string(data), "bank_account") || strings.Contains(string(data), "[defaults]") {
+			t.Errorf("input %q: config = %q", in, data)
+		}
+	}
+}
+
+func TestInit_InvalidBankAccountReasks(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.toml")
+	code, stdout, stderr := runInit(t, "5260250274\ntest\nPL61109010140000071219812875\n"+initIBAN+"\n", nil, "--config", p, "init")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "invalid IBAN") || !strings.Contains(stdout, "checksum") {
+		t.Errorf("stdout lacks reason: %q", stdout)
+	}
+	if data := initDefaultsBank(t, p); !strings.Contains(data, initIBAN) {
+		t.Errorf("config = %q", data)
+	}
+}
+
+func TestInit_BankAccountFlagSkipsQuestion(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.toml")
+	code, stdout, stderr := runInit(t, "5260250274\ntest\n", nil, "--config", p, "init", "--bank-account", "pl61 1090 1014 0000 0712 1981 2874")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	if strings.Contains(stdout, "Seller bank account") {
+		t.Errorf("question asked despite the flag: %q", stdout)
+	}
+	if data := initDefaultsBank(t, p); !strings.Contains(data, `bank_account = "`+initIBAN+`"`) {
+		t.Errorf("config = %q", data)
+	}
+}
+
+func TestInit_BankAccountFlagInvalidWritesNothing(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "sub", "config.toml")
+	code, _, stderr := runInit(t, "5260250274\ntest\n", nil, "--config", p, "init", "--bank-account", "PL00 1234")
+	if code != 1 || !strings.Contains(stderr, "--bank-account") {
+		t.Errorf("exit = %d, stderr = %q", code, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sub")); !os.IsNotExist(err) {
+		t.Errorf("dir created (err = %v)", err)
+	}
+}
+
+func TestInit_BankAccountIgnoredWhenConfigKept(t *testing.T) {
+	p := writeConfig(t, validConfigBody)
+	code, stdout, stderr := runInit(t, "n\n", nil, "--config", p, "init", "--bank-account", initIBAN)
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "--bank-account ignored") {
+		t.Errorf("stdout = %q", stdout)
+	}
+	data, _ := os.ReadFile(p)
+	if string(data) != validConfigBody {
+		t.Errorf("config changed: %q", data)
+	}
+}
