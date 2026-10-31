@@ -13,8 +13,9 @@ zsh is covered by analogy with bash and has not been run yet.
 
 // AmountHelp is the text of "fv help amounts": accepted amount formats and how
 // to quote them in each shell.
-const AmountHelp = `Amounts are in zloty (PLN) and are never read through the OS locale, so they
-mean the same on every machine.
+const AmountHelp = `Amounts are in zloty (PLN) or, on a foreign-currency invoice, in the invoice
+currency. They are never read through the OS locale, so they mean the same on
+every machine.
 
 Accepted formats:
   18500          whole zloty
@@ -32,4 +33,25 @@ Shell quoting:
 Examples:
   --net "18500,43"
   --net "18_500,43"
+
+Several lines and rounding:
+  1. A line's net is quantity times net unit price, rounded half up to the grosze.
+  2. A rate's net is the sum of the nets of the lines with that rate.
+  3. A rate's VAT is that net times the rate, rounded ONCE PER RATE, never per
+     line (art. 106e ust. 1 pkt 14 of the VAT act). The per-line alternative of
+     art. 106e ust. 10 is not used, and fv writes no VAT per line.
+  4. The gross total is the sum of the gross amounts of the rates.
+  5. On a foreign-currency invoice each rate's VAT in PLN is the VAT in the
+     invoice currency times the NBP mid rate, rounded.
+  Three lines of 0,02 at 23% have a VAT of 0,0138 in total, which rounds to 0,01;
+  rounding each line first would give 0,00. The preview shows every step.
+
+Quoting several lines:
+  --item dev=1,5   a saved item and its quantity. The "dev=" prefix keeps it one
+                   word, so it works without quotes in PowerShell 5.1 and 7 (both
+                   run on a test host); quotes are fine too.
+  --line "desc=Hosting; price=19,99; qty=2"
+                   a --line value contains ";", which bash, zsh and PowerShell all
+                   read as the end of a command, so it always needs quotes, as a
+                   whole, in every shell.
 `

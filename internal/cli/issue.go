@@ -69,7 +69,7 @@ func newIssueCmd(s *session) *cobra.Command {
 			"flags the items listed in [parties.<alias>] are billed. The single-line flags and --item/--line cannot be " +
 			"mixed. The VAT rate of a line is its own rate= or the item's vat_rate, then --rate, then the party's, " +
 			"then [defaults]; the exemption basis is shared by the whole invoice. VAT is computed once per rate from " +
-			"the summed line net amounts (see fv help amounts). bank_name and swift, when set next to the account " +
+			"the summed line net amounts (fv help amounts, section \"Several lines and rounding\", explains the rule and the quoting of --item and --line; a --line value always needs quotes because of the ';'). bank_name and swift, when set next to the account " +
 			"in use, are written on the invoice.\n\n" +
 			"Exit codes: 0 draft stored, 1 usage or config error (nothing is stored), 2 a registry or NBP lookup " +
 			"failed (no number is taken then). With --send the send exit codes of fv send also apply.",
